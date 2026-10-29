@@ -45,5 +45,7 @@ in `policies.md`.
 | Logging | `test_tool_calls_logged` | A tool call is logged with its agent, tool name and result | P16 |
 | Prompts | `test_prompts_carry_policies_and_date` | Each bot's prompt starts with the demo date and contains its policy text, the fresh-figures rule and the payment-confirmation rule | P3, P4, P9, P15 |
 | | `test_agent_files_hold_exact_prompts` | `description/agents/*.md` contain the exact prompts from `app.py` (fails if they're stale: run `python -m phase1.describe`) | — |
+| TraceExport | `test_full_conversation_follows_pages` | With Rakazo stubbed, the exporter follows `threads/messages` pages back to the first message, with no duplicates, in order | P16 |
+| | `test_session_export_includes_scripted_and_typed` | A `--session` export starts at the earliest message and includes both script-sent and UI-typed messages | P16 |
 | Descriptions | `test_policy_file_format` | `policies.md` has at least 3 policies numbered P1., P2., … consecutively, one paragraph each | — |
 | | `test_episodes_cite_existing_policies` | Every episode cites at least one policy, and only policies that exist | — |

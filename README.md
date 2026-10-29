@@ -76,7 +76,7 @@ python -m venv .venv
 source .venv/bin/activate          # Windows PowerShell: .venv\Scripts\Activate.ps1
                                    # (if blocked: Set-ExecutionPolicy -Scope Process Bypass)
 python -m pip install -r requirements.txt
-python -m unittest discover tests -v    # 27 tests, no LLM needed
+python -m unittest discover tests -v    # 29 tests, no LLM needed
 python -m phase1.check_tools            # walks the workflows through the MCP servers
 ```
 
@@ -157,6 +157,17 @@ After the first install, just start Docker Desktop. The containers restart on th
    `--fresh` first deletes the three bots' chat history, so a run can't reuse an earlier one's answers.
    It lists runs you haven't exported and asks you to type `yes`. Export each trace before the next
    send, and don't type in the bots' chats during a run.
+
+5. To save **everything** currently in the three chats, including messages you typed in Rakazo's UI
+   (for example during a live demo), export the whole session:
+
+   ```bash
+   python -m phase1.export_traces --session            # traces/session_<date>-<time>/
+   python -m phase1.export_traces --session demo_dec3  # or pick the folder name
+   ```
+
+   It covers every message since the chats were last cleared with `--fresh`, plus the tool calls from
+   that time on. Export before the next `--fresh`, because clearing deletes the chats in Rakazo.
 
 ### Example usage
 
