@@ -23,7 +23,7 @@ the CS239 tutorial's pattern (`examples/movie_night`): MCP tool servers, Rakazo 
 | Document | What it covers |
 |---|---|
 | [description/app.md](description/app.md) | Purpose and supported tasks |
-| [policies.md](policies.md) | The 16 policies (P1–P16) and which ones the code enforces |
+| [policy.md](policy.md) | The 16 policies (P1–P16) and which ones the code enforces |
 | [description/tools.md](description/tools.md) | Every tool's inputs and outputs |
 | [description/agents/](description/agents/) | Each agent's tools and exact system prompt |
 | [description/episodes/](description/episodes/) | Example episodes, real and hypothetical |
@@ -156,7 +156,8 @@ After the first install, just start Docker Desktop. The containers restart on th
 
    `--fresh` first deletes the three bots' chat history, so a run can't reuse an earlier one's answers.
    It lists runs you haven't exported and asks you to type `yes`. Export each trace before the next
-   send, and don't type in the bots' chats during a run.
+   send, and don't type in the bots' chats during a run. To only clear the chats without sending
+   anything (for example before recording a demo), run `python -m phase1.app --fresh` on its own.
 
 5. To save **everything** currently in the three chats, including messages you typed in Rakazo's UI
    (for example during a live demo), export the whole session:
@@ -211,4 +212,4 @@ and `dist/<name>-financial-advisor-<uid>-whole.tar.gz`. The second archive ships
 - Product links resolve against a fictional catalog (`data/products.json`). Unknown links make the advisor ask for the price.
 - The MCP servers bind to `0.0.0.0` (as in the tutorial) so the Docker containers can reach them.
 - Phase 1 enforces tool access (P1), debit refusals (P12), single payment (P13) and logging (P16) in
-  code. The other policies are prompt instructions only (see `policies.md`). Phase 2 enforces them.
+  code. The other policies are prompt instructions only (see `policy.md`). Phase 2 enforces them.

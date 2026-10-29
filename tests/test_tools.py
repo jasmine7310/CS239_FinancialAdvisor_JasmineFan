@@ -279,7 +279,7 @@ class TraceExport(unittest.TestCase):
 
 class Descriptions(Base):
     def test_policy_file_format(self):
-        text = (CODE / 'policies.md').read_text(encoding='utf-8')
+        text = (CODE / 'policy.md').read_text(encoding='utf-8')
         numbers = [int(n) for n in re.findall(r'^P(\d+)\. ', text, re.MULTILINE)]
         self.assertGreaterEqual(len(numbers), 3)
         self.assertEqual(numbers, list(range(1, len(numbers) + 1)))
@@ -287,7 +287,7 @@ class Descriptions(Base):
         self.assertTrue(all(re.match(r'P\d+\. ', block) for block in text.strip().split('\n\n')))
 
     def test_episodes_cite_existing_policies(self):
-        count = len(re.findall(r'^P\d+\. ', (CODE / 'policies.md').read_text(encoding='utf-8'), re.MULTILINE))
+        count = len(re.findall(r'^P\d+\. ', (CODE / 'policy.md').read_text(encoding='utf-8'), re.MULTILINE))
         for episode in (CODE / 'description' / 'episodes').glob('*.md'):
             cited = {int(n) for n in re.findall(r'\bP(\d+)\b', episode.read_text(encoding='utf-8'))}
             self.assertTrue(cited, episode.name)

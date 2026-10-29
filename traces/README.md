@@ -31,7 +31,7 @@ baselines that Phase 2's intercepted violations are compared against.
 
 ## Earlier runs
 
-Policy numbers refer to `policies.md`; the episodes in `description/episodes/` walk through these traces step by step.
+Policy numbers refer to `policy.md`; the episodes in `description/episodes/` walk through these traces step by step.
 
 - `console_stale_clock/`: the first `console` run, before the bots were told the demo date. The
   Financial Advisor noticed the data was dated 2026-10-24 while the real date was 2026-10-25,

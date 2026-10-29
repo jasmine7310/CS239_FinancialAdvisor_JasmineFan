@@ -55,14 +55,14 @@ def main():
     with tarfile.open(requirements, 'w:gz') as tar:
         description = ROOT / 'description'
         tar.add(description / 'app.md', f'{args.app}/app.md')
-        tar.add(ROOT / 'policies.md', f'{args.app}/policy.md')
+        tar.add(ROOT / 'policy.md', f'{args.app}/policy.md')
         tar.add(description / 'tools.md', f'{args.app}/tools.md')
         add_tree(tar, description / 'agents', f'{args.app}/agents')
         add_tree(tar, description / 'episodes', f'{args.app}/episodes')
 
     whole = dist / f'{stem}-whole.tar.gz'
     with tarfile.open(whole, 'w:gz') as tar:
-        for name in ('README.md', 'requirements.txt', 'requirements.md', 'policies.md', '.gitignore'):
+        for name in ('README.md', 'requirements.txt', 'requirements.md', 'policy.md', '.gitignore'):
             tar.add(ROOT / name, f'src/{name}')
         add_tree(tar, ROOT / 'phase1', 'src/phase1')
         add_tree(tar, ROOT / 'description', 'src/description')

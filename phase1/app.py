@@ -186,13 +186,14 @@ def main():
                         help='Log in and create (or update) the three bots and tool assignments')
     parser.add_argument('--send', choices=SCENARIOS, help='Send a scenario request to its bot')
     parser.add_argument('--fresh', action='store_true',
-                        help='With --send: first delete the three bots\' chat history (asks to confirm)')
+                        help='Delete the three bots\' chat history (asks to confirm); on its own it only '
+                             'clears, with --send it clears and then sends')
     parser.add_argument('--confirm', choices=SCENARIOS,
                         help='Send the user\'s payment confirmation to that scenario\'s bot')
     args = parser.parse_args()
-    if args.fresh and not args.send:
-        parser.error('--fresh requires --send')
-    if not (args.apply or args.send or args.confirm):
+    if args.fresh and args.confirm:
+        parser.error('--fresh would delete the conversation --confirm answers; run them separately')
+    if not (args.apply or args.send or args.confirm or args.fresh):
         print('Preview only. No network calls or changes.\n')
         for bot in profiles(ModelConnection('openai-compatible', 'YOUR_MODEL', 'YOUR_BASE_URL')):
             print(f'{bot.name}\n{bot.instructions}\nTools: {bot.mcp[0].endpoint}\n')
@@ -215,9 +216,9 @@ def main():
             app.create_team(*profiles(model, os.environ.get('MCP_HOST', '127.0.0.1')))
             print(f'Ready: Financial Advisor, Payment Manager and Bank Agent ({provider}/{model_id}), '
                   'each with its own MCP server.')
+        if args.fresh:
+            clear_chats(app, parser)
         if args.send:
-            if args.fresh:
-                clear_chats(app, parser)
             bot, request = SCENARIOS[args.send]
             folder = ROOT / 'traces' / args.send
             folder.mkdir(parents=True, exist_ok=True)

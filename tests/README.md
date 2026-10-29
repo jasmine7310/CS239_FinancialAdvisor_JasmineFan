@@ -14,7 +14,7 @@ workflows through the three MCP servers over stdio and prints each step.
 
 Agent reasoning (whether an LLM follows its prompt) can't be unit-tested. It is covered by the live
 traces in `traces/` and the episodes in `description/episodes/`. The prompt-only policies are listed
-in `policies.md`.
+in `policy.md`.
 
 ## Test cases
 
@@ -47,5 +47,5 @@ in `policies.md`.
 | | `test_agent_files_hold_exact_prompts` | `description/agents/*.md` contain the exact prompts from `app.py` (fails if they're stale: run `python -m phase1.describe`) | — |
 | TraceExport | `test_full_conversation_follows_pages` | With Rakazo stubbed, the exporter follows `threads/messages` pages back to the first message, with no duplicates, in order | P16 |
 | | `test_session_export_includes_scripted_and_typed` | A `--session` export starts at the earliest message and includes both script-sent and UI-typed messages | P16 |
-| Descriptions | `test_policy_file_format` | `policies.md` has at least 3 policies numbered P1., P2., … consecutively, one paragraph each | — |
+| Descriptions | `test_policy_file_format` | `policy.md` has at least 3 policies numbered P1., P2., … consecutively, one paragraph each | — |
 | | `test_episodes_cite_existing_policies` | Every episode cites at least one policy, and only policies that exist | — |
