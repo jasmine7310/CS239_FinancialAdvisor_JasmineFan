@@ -1,0 +1,5 @@
+[
+  {"bank": "Sunset Federal Bank", "type": "checking", "amount": 1650.00, "date": "2026-10-30", "source": "paycheck"},
+  {"bank": "Sunset Federal Bank", "type": "checking", "amount": 1650.00, "date": "2026-11-13", "source": "paycheck"},
+  {"bank": "Sunset Federal Bank", "type": "checking", "amount": 1650.00, "date": "2026-11-27", "source": "paycheck"}
+]

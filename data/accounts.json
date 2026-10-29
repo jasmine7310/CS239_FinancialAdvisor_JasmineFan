@@ -1,0 +1,7 @@
+[
+  {"bank": "Sunset Federal Bank", "type": "checking", "amount": 742.18, "apy": 0.0001},
+  {"bank": "Bruin Credit Union", "type": "checking", "amount": 268.40, "apy": 0.0005},
+  {"bank": "Pacific Coast Bank", "type": "savings", "amount": 3085.00, "goal": 3000.00, "apy": 0.0040},
+  {"bank": "Westwood Savings & Loan", "type": "savings", "amount": 5120.35, "goal": 5000.00, "apy": 0.0125},
+  {"bank": "Evergreen Online Bank", "type": "savings", "amount": 1560.00, "goal": 1500.00, "apy": 0.0420}
+]

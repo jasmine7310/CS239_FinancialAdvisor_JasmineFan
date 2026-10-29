@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.rakazo-runtime/
+.env
+data/charts/
+traces/tool_calls.jsonl
+dist/
