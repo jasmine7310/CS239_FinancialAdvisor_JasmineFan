@@ -1,6 +1,6 @@
 # Example 1: Can I buy a gaming console? (wait about a week)
 
-**Real episode**, recorded 2026-10-25 with Claude Opus 5.5 on Rakazo (`traces/console/`). Demo date: 2026-10-24. Starting data: `run_servers --reset`.
+**Real episode**, recorded 2026-10-25 with Claude Opus 5.5 on Rakazo (`traces/phase1/console/`). Demo date: 2026-10-24. Starting data: `run_servers --reset`.
 
 ## Initial inputs
 

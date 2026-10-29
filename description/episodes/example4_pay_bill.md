@@ -1,6 +1,6 @@
 # Example 4: Pay a bill with the user's confirmation
 
-**Real episode**, recorded 2026-10-25 (`traces/pay_bill/`). Demo date: 2026-10-24. Run after Examples 1–3; no bills paid yet.
+**Real episode**, recorded 2026-10-25 (`traces/phase1/pay_bill/`). Demo date: 2026-10-24. Run after Examples 1–3; no bills paid yet.
 
 ## Initial inputs
 

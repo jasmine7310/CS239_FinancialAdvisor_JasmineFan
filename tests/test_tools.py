@@ -245,17 +245,57 @@ class Prompts(Base):
             self.assertIn(self.bots[bot].instructions, text, f'{name} is stale: run python -m phase1.describe')
 
 
+class TraceExport(unittest.TestCase):
+    """export_traces --session: every message in a chat, across Rakazo's pages, scripted or typed."""
+
+    def fake_rakazo(self):
+        from phase1.rakazo import Rakazo
+        app = Rakazo('http://127.0.0.1:1')
+        msg = lambda seq, text, t: {'id': f'm{seq}', 'seq': seq, 'role': 'user',
+                                    'blocks': [{'kind': 'text', 'text': text}],
+                                    'createdAt': f'2026-10-25T20:0{t}:00Z'}
+        app.conversation = lambda bot_id: {'threadId': 't', 'messages': [msg(4, 'typed in UI', 4), msg(5, 'reply', 5)],
+                                           'olderCursor': 4}
+        pages = {4: {'messages': [msg(2, 'scripted --send', 2), msg(3, 'x', 3)], 'olderCursor': 2},
+                 2: {'messages': [msg(1, 'first', 1), msg(2, 'scripted --send', 2)], 'olderCursor': None}}
+        app.rpc = lambda route, data: pages[data['before']]
+        return app
+
+    def test_full_conversation_follows_pages(self):
+        with self.fake_rakazo() as app:
+            thread = app.full_conversation('bot')
+        self.assertEqual([m['seq'] for m in thread['messages']], [1, 2, 3, 4, 5])
+
+    def test_session_export_includes_scripted_and_typed(self):
+        from phase1.export_traces import parse_time, render, session_run
+        with self.fake_rakazo() as app:
+            threads = {'Financial Advisor': app.full_conversation('bot')}
+        run = session_run('session_test', threads)
+        self.assertEqual(parse_time(run['started_at']), parse_time('2026-10-25T20:01:00Z'))
+        text = render(run, threads, [], parse_time(run['started_at']))
+        self.assertIn('scripted --send', text)
+        self.assertIn('typed in UI', text)
+
+
 class Descriptions(Base):
     def test_policy_file_format(self):
-        text = (CODE / 'policies.md').read_text(encoding='utf-8')
+        text = (CODE / 'policy.md').read_text(encoding='utf-8')
         numbers = [int(n) for n in re.findall(r'^P(\d+)\. ', text, re.MULTILINE)]
         self.assertGreaterEqual(len(numbers), 3)
         self.assertEqual(numbers, list(range(1, len(numbers) + 1)))
         # One paragraph per policy, separated by blank lines.
         self.assertTrue(all(re.match(r'P\d+\. ', block) for block in text.strip().split('\n\n')))
 
+    def test_traces_readme_covers_every_trace(self):
+        readme = (CODE / 'traces' / 'README.md').read_text(encoding='utf-8')
+        folders = [p.name for p in (CODE / 'traces' / 'phase1').iterdir() if (p / 'trace.json').exists()]
+        self.assertGreaterEqual(len(folders), 3)
+        for name in folders:
+            self.assertIn(f'phase1/{name}/', readme, f'traces/README.md does not describe {name}')
+            self.assertTrue((CODE / 'traces' / 'phase1' / name / 'trace.md').exists(), name)
+
     def test_episodes_cite_existing_policies(self):
-        count = len(re.findall(r'^P\d+\. ', (CODE / 'policies.md').read_text(encoding='utf-8'), re.MULTILINE))
+        count = len(re.findall(r'^P\d+\. ', (CODE / 'policy.md').read_text(encoding='utf-8'), re.MULTILINE))
         for episode in (CODE / 'description' / 'episodes').glob('*.md'):
             cited = {int(n) for n in re.findall(r'\bP(\d+)\b', episode.read_text(encoding='utf-8'))}
             self.assertTrue(cited, episode.name)

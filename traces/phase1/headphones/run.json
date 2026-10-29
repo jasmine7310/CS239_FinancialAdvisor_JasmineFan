@@ -1,0 +1,7 @@
+{
+  "scenario": "headphones",
+  "bot": "Financial Advisor",
+  "request": "I want these headphones: https://www.amazon.com/Wavelength-Wireless-Headphones/dp/B0WAVEHP01?th=1 Do they fit my budget?",
+  "started_at": "2026-10-25T13:21:44.908",
+  "run_id": "cmvo9wyif00152lqgoifw72lk"
+}

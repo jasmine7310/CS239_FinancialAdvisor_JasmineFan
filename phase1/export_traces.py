@@ -1,6 +1,10 @@
-"""Export one scenario's trace: the three bots' Rakazo conversations plus every MCP tool call.
+"""Export a trace: the three bots' Rakazo conversations plus every MCP tool call.
 
-Writes traces/<scenario>/trace.json (raw, complete) and trace.md (readable).
+    python -m phase1.export_traces <scenario>    one scripted run (from its --send start time)
+    python -m phase1.export_traces --session     everything now in the three chats, scripted or
+                                                 typed in Rakazo (since the last --fresh)
+
+Writes traces/phase1/<name>/trace.json (raw, complete) and trace.md (readable).
 The Markdown renderer is generic because Rakazo's thread format can change between versions;
 trace.json always keeps the full responses.
 """
@@ -9,7 +13,7 @@ from datetime import datetime
 import json
 import os
 from .app import ADVISOR, BANK, PAYMENTS, ask_password
-from .common import ROOT, TOOL_LOG
+from .common import TOOL_LOG, TRACES_DIR
 from .rakazo import Rakazo
 
 TIME_KEYS = ('createdAt', 'created_at', 'timestamp', 'time')
@@ -81,12 +85,40 @@ def render(run, threads, calls, start):
     return '\n'.join(lines)
 
 
+def session_run(name: str, threads: dict) -> dict:
+    """A run record covering every message now in the chats, starting at the earliest one."""
+    stamps = [parse_time(m[k]) for t in threads.values() for m in messages(t) for k in TIME_KEYS if k in m]
+    stamps = [s for s in stamps if s]
+    start = min(stamps).astimezone() if stamps else datetime.now().astimezone()
+    return {'scenario': name, 'bot': 'all three bots',
+            'request': 'Whole current session: every message in the three chats, sent by the scripts '
+                       'or typed in Rakazo', 'started_at': start.isoformat(timespec='milliseconds')}
+
+
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('scenario')
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('scenario', nargs='?', help='Scenario sent with --send (omit with --session)')
+    parser.add_argument('--session', nargs='?', const='', metavar='NAME',
+                        help='Export everything in the three chats into traces/NAME '
+                             '(default: session_<date>-<time>)')
     args = parser.parse_args()
-    folder = ROOT / 'traces' / args.scenario
-    run = json.loads((folder / 'run.json').read_text(encoding='utf-8'))
+    if (args.scenario is None) == (args.session is None):
+        parser.error('Give a scenario, or --session, but not both')
+    missing = [n for n in ('RAKAZO_URL', 'RAKAZO_EMAIL') if not os.environ.get(n)]
+    if missing:
+        parser.error('Set ' + ', '.join(missing))
+    with Rakazo(os.environ['RAKAZO_URL'], origin=os.environ.get('RAKAZO_ORIGIN')) as app:
+        app.ensure_login(os.environ['RAKAZO_EMAIL'], ask_password)
+        threads = {bot: app.full_conversation(app.find_bot(bot)) for bot in (ADVISOR, PAYMENTS, BANK)}
+    if args.session is not None:
+        name = args.session or datetime.now().strftime('session_%Y%m%d-%H%M%S')
+        folder = TRACES_DIR / name
+        folder.mkdir(parents=True, exist_ok=True)
+        run = session_run(name, threads)
+        (folder / 'run.json').write_text(json.dumps(run, indent=2), encoding='utf-8')
+    else:
+        folder = TRACES_DIR / args.scenario
+        run = json.loads((folder / 'run.json').read_text(encoding='utf-8'))
     start = parse_time(run['started_at'])
     calls = []
     if TOOL_LOG.exists():
@@ -94,12 +126,6 @@ def main():
             entry = json.loads(line)
             if parse_time(entry['ts']) >= start:
                 calls.append(entry)
-    missing = [n for n in ('RAKAZO_URL', 'RAKAZO_EMAIL') if not os.environ.get(n)]
-    if missing:
-        parser.error('Set ' + ', '.join(missing))
-    with Rakazo(os.environ['RAKAZO_URL'], origin=os.environ.get('RAKAZO_ORIGIN')) as app:
-        app.ensure_login(os.environ['RAKAZO_EMAIL'], ask_password)
-        threads = {bot: app.conversation(app.find_bot(bot)) for bot in (ADVISOR, PAYMENTS, BANK)}
     trace = {**run, 'exported_at': datetime.now().isoformat(timespec='seconds'),
              'tool_calls': calls, 'rakazo_threads': threads}
     (folder / 'trace.json').write_text(json.dumps(trace, indent=2, default=str), encoding='utf-8')

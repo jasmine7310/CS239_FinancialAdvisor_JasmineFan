@@ -1,6 +1,6 @@
 # Requirements: Multi-Agent Purchase Advisor
 
-Phase 1 requirements. The submission's policy list, `policies.md` (P1–P16), condenses §5 below into numbered policies.
+Phase 1 requirements. The submission's policy list, `policy.md` (P1–P16), condenses §5 below into numbered policies.
 
 ## 1. Purpose
 

@@ -4,7 +4,7 @@ from datetime import datetime
 import getpass
 import json
 import os
-from .common import ACCOUNTS_FORMAT, PAYMENTS_FORMAT, ROOT, WISHLIST_FORMAT, clock_note
+from .common import ACCOUNTS_FORMAT, PAYMENTS_FORMAT, TRACES_DIR, WISHLIST_FORMAT, clock_note
 from .rakazo import BotProfile, MCPConnection, ModelConnection, Rakazo
 
 ADVISOR, PAYMENTS, BANK = 'Financial Advisor', 'Payment Manager', 'Bank Agent'
@@ -157,7 +157,7 @@ def ask_password() -> str:
 def unexported_runs() -> list[str]:
     """Scenarios whose latest run (or follow-up) is newer than their exported trace.json."""
     pending = []
-    for path in sorted((ROOT / 'traces').glob('*/run.json')):
+    for path in sorted(TRACES_DIR.glob('*/run.json')):
         run = json.loads(path.read_text(encoding='utf-8'))
         last = max([run['started_at']] + [f['sent_at'] for f in run.get('follow_ups', [])])
         trace = path.parent / 'trace.json'
@@ -186,13 +186,14 @@ def main():
                         help='Log in and create (or update) the three bots and tool assignments')
     parser.add_argument('--send', choices=SCENARIOS, help='Send a scenario request to its bot')
     parser.add_argument('--fresh', action='store_true',
-                        help='With --send: first delete the three bots\' chat history (asks to confirm)')
+                        help='Delete the three bots\' chat history (asks to confirm); on its own it only '
+                             'clears, with --send it clears and then sends')
     parser.add_argument('--confirm', choices=SCENARIOS,
                         help='Send the user\'s payment confirmation to that scenario\'s bot')
     args = parser.parse_args()
-    if args.fresh and not args.send:
-        parser.error('--fresh requires --send')
-    if not (args.apply or args.send or args.confirm):
+    if args.fresh and args.confirm:
+        parser.error('--fresh would delete the conversation --confirm answers; run them separately')
+    if not (args.apply or args.send or args.confirm or args.fresh):
         print('Preview only. No network calls or changes.\n')
         for bot in profiles(ModelConnection('openai-compatible', 'YOUR_MODEL', 'YOUR_BASE_URL')):
             print(f'{bot.name}\n{bot.instructions}\nTools: {bot.mcp[0].endpoint}\n')
@@ -215,11 +216,11 @@ def main():
             app.create_team(*profiles(model, os.environ.get('MCP_HOST', '127.0.0.1')))
             print(f'Ready: Financial Advisor, Payment Manager and Bank Agent ({provider}/{model_id}), '
                   'each with its own MCP server.')
+        if args.fresh:
+            clear_chats(app, parser)
         if args.send:
-            if args.fresh:
-                clear_chats(app, parser)
             bot, request = SCENARIOS[args.send]
-            folder = ROOT / 'traces' / args.send
+            folder = TRACES_DIR / args.send
             folder.mkdir(parents=True, exist_ok=True)
             started = datetime.now().isoformat(timespec='milliseconds')
             run = app.send(app.find_bot(bot), request)
@@ -230,7 +231,7 @@ def main():
                   f'  python -m phase1.export_traces {args.send}')
         if args.confirm:
             bot, _ = SCENARIOS[args.confirm]
-            path = ROOT / 'traces' / args.confirm / 'run.json'
+            path = TRACES_DIR / args.confirm / 'run.json'
             if not path.exists():
                 parser.error(f'Send {args.confirm} first')
             run_info = json.loads(path.read_text(encoding='utf-8'))

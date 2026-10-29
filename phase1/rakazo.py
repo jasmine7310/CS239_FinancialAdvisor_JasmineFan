@@ -1,7 +1,8 @@
 # Copied from the CS239 tutorial (examples/movie_night/rakazo.py); find_bot() added,
 # create_team() reuses an existing provider sign-in when no API key is given and
 # updates same-named bots instead of refusing, 4xx errors show Rakazo's reason, clear() added,
-# and ensure_login() reuses a saved session instead of signing in on every command.
+# ensure_login() reuses a saved session instead of signing in on every command, and
+# full_conversation() follows threads/messages pages back to a chat's first message.
 """Small teaching wrapper around this Rakazo version's authenticated HTTP API.
 
 This is not an official Rakazo SDK or an A2A server. Rakazo must already run.
@@ -167,6 +168,21 @@ class Rakazo:
 
     def conversation(self, bot_id: str):
         return self.rpc('threads/get', {'botId': bot_id})
+
+    def full_conversation(self, bot_id: str, max_pages: int = 500):
+        """threads/get plus every older page (threads/messages), messages de-duplicated in seq order."""
+        snapshot = self.conversation(bot_id)
+        found = {m['id']: m for m in snapshot['messages']}
+        before = snapshot.get('olderCursor')
+        for _ in range(max_pages):
+            if before is None:
+                break
+            page = self.rpc('threads/messages', {'botId': bot_id, 'before': before})
+            found.update({m['id']: m for m in page['messages']})
+            if not page['messages'] or page.get('olderCursor') == before:
+                break
+            before = page.get('olderCursor')
+        return {**snapshot, 'messages': sorted(found.values(), key=lambda m: m['seq']), 'olderCursor': None}
 
     def clear(self, bot_id: str):
         """Permanently delete a bot's chat history and cancel its active runs."""

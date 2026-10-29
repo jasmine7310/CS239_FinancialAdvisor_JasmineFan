@@ -1,0 +1,7 @@
+{
+  "scenario": "console",
+  "bot": "Financial Advisor",
+  "request": "Can I buy this gaming console? https://www.amazon.com/dp/B0NOVAPLY5",
+  "started_at": "2026-10-25T12:54:42.006",
+  "run_id": "cmvo8y68f000w2lqgi4ikzcce"
+}

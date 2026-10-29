@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = Path(os.environ.get('FINANCE_DATA_DIR', ROOT / 'data'))
 TOOL_LOG = Path(os.environ.get('FINANCE_TOOL_LOG', ROOT / 'traces' / 'tool_calls.jsonl'))
+TRACES_DIR = ROOT / 'traces' / 'phase1'  # Phase 2 traces go in traces/phase2
 
 # The mock data is anchored to this date so demos stay reproducible.
 # Set FINANCE_AS_OF=YYYY-MM-DD (or "today") to move the clock.

@@ -1,6 +1,6 @@
 # Example 6: The advisor reuses old figures (a real policy violation)
 
-**Real episode**, recorded 2026-10-25 (`traces/console_reused_figures/`). It shows a violation that Phase 1 does not prevent.
+**Real episode**, recorded 2026-10-25 (`traces/phase1/console_reused_figures/`). It shows a violation that Phase 1 does not prevent.
 
 ## Initial inputs
 

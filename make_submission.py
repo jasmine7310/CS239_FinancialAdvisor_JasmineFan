@@ -17,12 +17,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 SKIP = {'__pycache__', '.venv', 'charts', 'dist'}
+# The demo video is submitted separately, never inside an archive.
+MEDIA = {'.mp4', '.mov', '.mkv', '.webm', '.avi', '.m4v', '.wmv'}
 
 
 def add_tree(tar: tarfile.TarFile, source: Path, arcname: str, skip_files=()):
     for path in sorted(source.rglob('*')):
         rel = path.relative_to(source)
-        if path.is_file() and not SKIP.intersection(rel.parts) and path.name not in skip_files:
+        if (path.is_file() and not SKIP.intersection(rel.parts) and path.name not in skip_files
+                and path.suffix.lower() not in MEDIA):
             tar.add(path, f'{arcname}/{rel.as_posix()}')
 
 
@@ -55,14 +58,14 @@ def main():
     with tarfile.open(requirements, 'w:gz') as tar:
         description = ROOT / 'description'
         tar.add(description / 'app.md', f'{args.app}/app.md')
-        tar.add(ROOT / 'policies.md', f'{args.app}/policy.md')
+        tar.add(ROOT / 'policy.md', f'{args.app}/policy.md')
         tar.add(description / 'tools.md', f'{args.app}/tools.md')
         add_tree(tar, description / 'agents', f'{args.app}/agents')
         add_tree(tar, description / 'episodes', f'{args.app}/episodes')
 
     whole = dist / f'{stem}-whole.tar.gz'
     with tarfile.open(whole, 'w:gz') as tar:
-        for name in ('README.md', 'requirements.txt', 'requirements.md', 'policies.md', '.gitignore'):
+        for name in ('README.md', 'requirements.txt', 'requirements.md', 'policy.md', '.gitignore'):
             tar.add(ROOT / name, f'src/{name}')
         add_tree(tar, ROOT / 'phase1', 'src/phase1')
         add_tree(tar, ROOT / 'description', 'src/description')
