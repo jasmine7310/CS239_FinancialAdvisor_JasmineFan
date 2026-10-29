@@ -4,7 +4,7 @@ from datetime import datetime
 import getpass
 import json
 import os
-from .common import ACCOUNTS_FORMAT, PAYMENTS_FORMAT, ROOT, WISHLIST_FORMAT, clock_note
+from .common import ACCOUNTS_FORMAT, PAYMENTS_FORMAT, TRACES_DIR, WISHLIST_FORMAT, clock_note
 from .rakazo import BotProfile, MCPConnection, ModelConnection, Rakazo
 
 ADVISOR, PAYMENTS, BANK = 'Financial Advisor', 'Payment Manager', 'Bank Agent'
@@ -157,7 +157,7 @@ def ask_password() -> str:
 def unexported_runs() -> list[str]:
     """Scenarios whose latest run (or follow-up) is newer than their exported trace.json."""
     pending = []
-    for path in sorted((ROOT / 'traces').glob('*/run.json')):
+    for path in sorted(TRACES_DIR.glob('*/run.json')):
         run = json.loads(path.read_text(encoding='utf-8'))
         last = max([run['started_at']] + [f['sent_at'] for f in run.get('follow_ups', [])])
         trace = path.parent / 'trace.json'
@@ -220,7 +220,7 @@ def main():
             clear_chats(app, parser)
         if args.send:
             bot, request = SCENARIOS[args.send]
-            folder = ROOT / 'traces' / args.send
+            folder = TRACES_DIR / args.send
             folder.mkdir(parents=True, exist_ok=True)
             started = datetime.now().isoformat(timespec='milliseconds')
             run = app.send(app.find_bot(bot), request)
@@ -231,7 +231,7 @@ def main():
                   f'  python -m phase1.export_traces {args.send}')
         if args.confirm:
             bot, _ = SCENARIOS[args.confirm]
-            path = ROOT / 'traces' / args.confirm / 'run.json'
+            path = TRACES_DIR / args.confirm / 'run.json'
             if not path.exists():
                 parser.error(f'Send {args.confirm} first')
             run_info = json.loads(path.read_text(encoding='utf-8'))

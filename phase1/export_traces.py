@@ -4,7 +4,7 @@
     python -m phase1.export_traces --session     everything now in the three chats, scripted or
                                                  typed in Rakazo (since the last --fresh)
 
-Writes traces/<name>/trace.json (raw, complete) and trace.md (readable).
+Writes traces/phase1/<name>/trace.json (raw, complete) and trace.md (readable).
 The Markdown renderer is generic because Rakazo's thread format can change between versions;
 trace.json always keeps the full responses.
 """
@@ -13,7 +13,7 @@ from datetime import datetime
 import json
 import os
 from .app import ADVISOR, BANK, PAYMENTS, ask_password
-from .common import ROOT, TOOL_LOG
+from .common import TOOL_LOG, TRACES_DIR
 from .rakazo import Rakazo
 
 TIME_KEYS = ('createdAt', 'created_at', 'timestamp', 'time')
@@ -112,12 +112,12 @@ def main():
         threads = {bot: app.full_conversation(app.find_bot(bot)) for bot in (ADVISOR, PAYMENTS, BANK)}
     if args.session is not None:
         name = args.session or datetime.now().strftime('session_%Y%m%d-%H%M%S')
-        folder = ROOT / 'traces' / name
+        folder = TRACES_DIR / name
         folder.mkdir(parents=True, exist_ok=True)
         run = session_run(name, threads)
         (folder / 'run.json').write_text(json.dumps(run, indent=2), encoding='utf-8')
     else:
-        folder = ROOT / 'traces' / args.scenario
+        folder = TRACES_DIR / args.scenario
         run = json.loads((folder / 'run.json').read_text(encoding='utf-8'))
     start = parse_time(run['started_at'])
     calls = []

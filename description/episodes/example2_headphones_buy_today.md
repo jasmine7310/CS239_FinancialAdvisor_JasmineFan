@@ -1,6 +1,6 @@
 # Example 2: Do these headphones fit my budget? (buy today)
 
-**Real episode**, recorded 2026-10-25 (`traces/headphones/`). Demo date: 2026-10-24. Same starting data as Example 1.
+**Real episode**, recorded 2026-10-25 (`traces/phase1/headphones/`). Demo date: 2026-10-24. Same starting data as Example 1.
 
 ## Initial inputs
 

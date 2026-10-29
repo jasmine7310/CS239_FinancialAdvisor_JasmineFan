@@ -48,4 +48,5 @@ in `policy.md`.
 | TraceExport | `test_full_conversation_follows_pages` | With Rakazo stubbed, the exporter follows `threads/messages` pages back to the first message, with no duplicates, in order | P16 |
 | | `test_session_export_includes_scripted_and_typed` | A `--session` export starts at the earliest message and includes both script-sent and UI-typed messages | P16 |
 | Descriptions | `test_policy_file_format` | `policy.md` has at least 3 policies numbered P1., P2., … consecutively, one paragraph each | — |
+| | `test_traces_readme_covers_every_trace` | Every recorded trace in `traces/phase1/` has a `trace.md` and is described in `traces/README.md` (at least 3 traces) | — |
 | | `test_episodes_cite_existing_policies` | Every episode cites at least one policy, and only policies that exist | — |

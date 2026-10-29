@@ -17,12 +17,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 SKIP = {'__pycache__', '.venv', 'charts', 'dist'}
+# The demo video is submitted separately, never inside an archive.
+MEDIA = {'.mp4', '.mov', '.mkv', '.webm', '.avi', '.m4v', '.wmv'}
 
 
 def add_tree(tar: tarfile.TarFile, source: Path, arcname: str, skip_files=()):
     for path in sorted(source.rglob('*')):
         rel = path.relative_to(source)
-        if path.is_file() and not SKIP.intersection(rel.parts) and path.name not in skip_files:
+        if (path.is_file() and not SKIP.intersection(rel.parts) and path.name not in skip_files
+                and path.suffix.lower() not in MEDIA):
             tar.add(path, f'{arcname}/{rel.as_posix()}')
 
 

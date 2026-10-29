@@ -286,6 +286,14 @@ class Descriptions(Base):
         # One paragraph per policy, separated by blank lines.
         self.assertTrue(all(re.match(r'P\d+\. ', block) for block in text.strip().split('\n\n')))
 
+    def test_traces_readme_covers_every_trace(self):
+        readme = (CODE / 'traces' / 'README.md').read_text(encoding='utf-8')
+        folders = [p.name for p in (CODE / 'traces' / 'phase1').iterdir() if (p / 'trace.json').exists()]
+        self.assertGreaterEqual(len(folders), 3)
+        for name in folders:
+            self.assertIn(f'phase1/{name}/', readme, f'traces/README.md does not describe {name}')
+            self.assertTrue((CODE / 'traces' / 'phase1' / name / 'trace.md').exists(), name)
+
     def test_episodes_cite_existing_policies(self):
         count = len(re.findall(r'^P\d+\. ', (CODE / 'policy.md').read_text(encoding='utf-8'), re.MULTILINE))
         for episode in (CODE / 'description' / 'episodes').glob('*.md'):

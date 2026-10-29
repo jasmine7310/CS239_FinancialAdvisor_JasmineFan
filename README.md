@@ -20,16 +20,30 @@ user's confirmed request:
 Each bot is assigned **only its own MCP server**, so it can read only its own data. The app follows
 the CS239 tutorial's pattern (`examples/movie_night`): MCP tool servers, Rakazo bot profiles and `message_bot`.
 
-| Document | What it covers |
+## Where each deliverable is
+
+**Course project deliverables** (public repo):
+
+| Deliverable | Location |
 |---|---|
-| [description/app.md](description/app.md) | Purpose and supported tasks |
-| [policy.md](policy.md) | The 16 policies (P1–P16) and which ones the code enforces |
-| [description/tools.md](description/tools.md) | Every tool's inputs and outputs |
-| [description/agents/](description/agents/) | Each agent's tools and exact system prompt |
-| [description/episodes/](description/episodes/) | Example episodes, real and hypothetical |
-| [requirements.md](requirements.md) | Detailed requirements (FR-*, AC-*, IB-*, PR-*, LC-*) |
-| [traces/README.md](traces/README.md) | Recorded traces and scenarios |
-| [tests/README.md](tests/README.md) | Test cases |
+| `requirements.md`: what the app does and must never do | [requirements.md](requirements.md) |
+| `policies.md`: the policies as rules | [policy.md](policy.md): 16 policies, P1–P16, each marked as enforced in code or prompt-only |
+| Phase 1 source | [phase1/](phase1/) (tools, bot profiles, scripts) and [data/](data/) |
+| Phase 1 traces (at least 3) | [traces/phase1/](traces/phase1/): 4 complete scenario runs, 1 whole live session, 2 earlier runs showing real issues |
+| `traces/README.md`: each scenario and which policy was triggered | [traces/README.md](traces/README.md) |
+| Phase 2 source and traces | Added in Phase 2 (`phase2/`, `traces/phase2/`) |
+
+**Submission archives** (built by `python make_submission.py`, see below):
+
+| Archive | Contents | Source in this repo |
+|---|---|---|
+| `…-requirements.tar.gz` | `financial-advisor/app.md` | [description/app.md](description/app.md) |
+| | `financial-advisor/policy.md` | [policy.md](policy.md) |
+| | `financial-advisor/tools.md` | [description/tools.md](description/tools.md) |
+| | `financial-advisor/agents/*.md`: each agent's tools and exact system prompt | [description/agents/](description/agents/) (generated from `app.py`) |
+| | `financial-advisor/episodes/*.md`: 9 episodes, 6 real and 3 hypothetical | [description/episodes/](description/episodes/) |
+| `…-whole.tar.gz` | `src/`: this README, code, data, docs, traces | the repo, with the data reset to its starting state |
+| | `tests/`: test cases | [tests/](tests/) ([tests/README.md](tests/README.md)) |
 
 ## Layout
 
@@ -44,6 +58,9 @@ the CS239 tutorial's pattern (`examples/movie_night`): MCP tool servers, Rakazo 
 | `phase1/rakazo.py` | The tutorial's Rakazo API helper, with small additions |
 | `data/` | Fictional data: `wishlist.json` (empty), `payments.json` (20 unpaid bills), `accounts.json` (2 checking, 3 savings), `transactions.json` (empty ledger), `deposits.json`, `products.json` |
 | `data/seed/` | Starting copies of the files agents can change, restored by `run_servers --reset` |
+| `traces/phase1/<scenario>/` | Recorded traces (`run.json`, `trace.json`, `trace.md`), written by `--send` and `export_traces` |
+| `description/` | App, tool and agent descriptions and episodes (the requirements archive) |
+| `requirements.md`, `policy.md` | Requirements and policies |
 | `tests/` | Unit tests (no LLM needed) |
 | `make_submission.py` | Builds the two submission archives |
 
@@ -76,7 +93,7 @@ python -m venv .venv
 source .venv/bin/activate          # Windows PowerShell: .venv\Scripts\Activate.ps1
                                    # (if blocked: Set-ExecutionPolicy -Scope Process Bypass)
 python -m pip install -r requirements.txt
-python -m unittest discover tests -v    # 29 tests, no LLM needed
+python -m unittest discover tests -v    # 30 tests, no LLM needed
 python -m phase1.check_tools            # walks the workflows through the MCP servers
 ```
 
@@ -163,7 +180,7 @@ After the first install, just start Docker Desktop. The containers restart on th
    (for example during a live demo), export the whole session:
 
    ```bash
-   python -m phase1.export_traces --session            # traces/session_<date>-<time>/
+   python -m phase1.export_traces --session            # traces/phase1/session_<date>-<time>/
    python -m phase1.export_traces --session demo_dec3  # or pick the folder name
    ```
 
@@ -174,7 +191,7 @@ After the first install, just start Docker Desktop. The containers restart on th
 
 ```bash
 python -m phase1.app --send console --fresh      # Financial Advisor: "Can I buy this gaming console? <link>"
-# ...expected answer: "wait about a week" (traces/console/trace.md)
+# ...expected answer: "wait about a week" (traces/phase1/console/trace.md)
 python -m phase1.export_traces console
 
 python -m phase1.app --send pay_bill --fresh     # Payment Manager: "Please pay my debt bill that is due today..."

@@ -1,6 +1,6 @@
 # Example 3: Should I buy a gaming PC? (not now, added to wishlist)
 
-**Real episode**, recorded 2026-10-25 (`traces/gaming_pc/`). Demo date: 2026-10-24. Same starting data.
+**Real episode**, recorded 2026-10-25 (`traces/phase1/gaming_pc/`). Demo date: 2026-10-24. Same starting data.
 
 ## Initial inputs
 
