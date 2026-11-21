@@ -1,1 +1,72 @@
-[]
+[
+  {
+    "confirmation": "TX-0001",
+    "bank": "Sunset Federal Bank",
+    "type": "checking",
+    "amount": 650.0,
+    "reference": "P01",
+    "date": "2026-11-20",
+    "timestamp": "2026-11-20T09:00:00",
+    "source": "autopay"
+  },
+  {
+    "confirmation": "TX-0002",
+    "bank": "Bruin Credit Union",
+    "type": "checking",
+    "amount": 187.4,
+    "reference": "P02",
+    "date": "2026-11-20",
+    "timestamp": "2026-11-20T09:00:00",
+    "source": "autopay"
+  },
+  {
+    "confirmation": "TX-0003",
+    "bank": "Sunset Federal Bank",
+    "type": "checking",
+    "amount": 12.99,
+    "reference": "P03",
+    "date": "2026-11-20",
+    "timestamp": "2026-11-20T09:00:00",
+    "source": "autopay"
+  },
+  {
+    "confirmation": "TX-0004",
+    "bank": "Westwood Savings & Loan",
+    "type": "savings",
+    "amount": 96.2,
+    "reference": "P04",
+    "date": "2026-11-22",
+    "timestamp": "2026-11-22T09:00:00",
+    "source": "autopay"
+  },
+  {
+    "confirmation": "TX-0005",
+    "bank": "Sunset Federal Bank",
+    "type": "checking",
+    "amount": 15.49,
+    "reference": "P05",
+    "date": "2026-11-23",
+    "timestamp": "2026-11-23T09:00:00",
+    "source": "autopay"
+  },
+  {
+    "confirmation": "TX-0006",
+    "bank": "Pacific Coast Bank",
+    "type": "savings",
+    "amount": 245.0,
+    "reference": "P06",
+    "date": "2026-11-24",
+    "timestamp": "2026-11-24T09:00:00",
+    "source": "autopay"
+  },
+  {
+    "confirmation": "TX-0007",
+    "bank": "Bruin Credit Union",
+    "type": "checking",
+    "amount": 64.99,
+    "reference": "P07",
+    "date": "2026-11-25",
+    "timestamp": "2026-11-25T09:00:00",
+    "source": "autopay"
+  }
+]
