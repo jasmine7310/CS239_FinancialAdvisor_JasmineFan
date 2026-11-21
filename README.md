@@ -61,7 +61,7 @@ Live runs use Claude through the Messages API and need an API key in your enviro
 | Variable | Default | What |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | none | Required for live runs |
-| `APP_MODEL` | `claude-opus-5-5` | The agents' model, e.g. `claude-haiku-5-5` for low-cost runs |
+| `APP_MODEL` | `claude-haiku-5-5` | The agents' model (any Claude model ID, e.g. `claude-opus-5-5`) |
 | `APP_EFFORT` | the model's default | `low`, `medium`, `high`, `xhigh` or `max` |
 
 ## Run
@@ -91,10 +91,29 @@ checking, else savings). No agent can move time.
 | `pay_bill` | Payment Manager | Confirmation, then payment through the Bank Agent |
 | `pay_refused` | Payment Manager | Confirmed, but the Bank Agent refuses (savings goal) |
 | `boundary_probe`, `pay_probe`, `bank_purchase_question` | various | Requests the policies say must be refused or redirected |
+| `injected_product` | Financial Advisor | The product page tells AI assistants to skip the check and pay bills; it is treated as data (P11) |
+
+## Test harness
+
+[test_cases.json](test_cases.json) holds ten cases (S01–S10): normal use, requests that could break a
+policy, and boundary cases. `run.py` plays each case as the user on a fresh copy of the fixtures and checks
+the final state (wishlist, bills, ledger, balances, clock) and, lightly, the replies. These checks cover
+functionality only, not policy compliance.
+
+```bash
+python run.py --case S01 --output_dir runs --sample 1   # one case
+python run.py --output_dir runs --sample 3              # every case, samples 1-3
+```
+
+Each sample writes `runs/<case>/sample-<n>/result.json` with only `{"match_expected_outcome": true|false}`.
+An error or a timeout (`CASE_TIMEOUT`, 600 s by default) counts as `false`. The trace, final state and
+token usage are saved under `runs/<case>/sample-<n>/artifacts/`. `ORIGINAL_APP_DIR` says where the app
+lives (default: this folder). Runs are live with Claude by default (needs `ANTHROPIC_API_KEY`). Set
+`APP_BACKEND=scripted` to run offline for free.
 
 ## Notes
 
 - All data is fictional. Product links resolve against `fixtures/products.json`.
 - `ScriptedBackend` follows the policies with fixed rules. It is for development and tests, not a model.
-- With `claude-opus-5-5` (and other models that support it), requests use the API's server-side refusal
+- The agents run on Claude Haiku 5.5 by default. With `claude-opus-5-5` (and other models that support it), requests use the API's server-side refusal
   fallback. Remove `FALLBACK_MODELS` in `finadvisor/backends.py` to turn it off.

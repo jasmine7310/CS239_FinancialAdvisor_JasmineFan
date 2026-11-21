@@ -11,7 +11,7 @@ import re
 from .bus import USER
 from .tools import ADVISOR, BANK, PAYMENTS
 
-DEFAULT_MODEL = 'claude-opus-5-5'
+DEFAULT_MODEL = 'claude-haiku-5-5'
 # Models that accept the server-side refusal fallback (`fallbacks: "default"`).
 FALLBACK_MODELS = {'claude-opus-5-5', 'claude-sonnet-5-5', 'claude-opus-5', 'claude-fable-5-2', 'claude-fable-5-1'}
 
@@ -26,7 +26,7 @@ class Reply:
 
 
 class AnthropicBackend:
-    """Claude via the Messages API. Model from APP_MODEL (default claude-opus-5-5); effort from APP_EFFORT."""
+    """Claude via the Messages API. Model from APP_MODEL (default claude-haiku-5-5); effort from APP_EFFORT."""
 
     def __init__(self, model: str | None = None, effort: str | None = None, max_tokens: int = 16000):
         import anthropic  # only needed for live runs

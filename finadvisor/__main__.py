@@ -89,7 +89,7 @@ def main():
     for name in ('chat', 'scenario'):
         p = sub.add_parser(name)
         p.add_argument('--scripted', action='store_true', help='Use the free offline scripted agents')
-        p.add_argument('--model', help='Claude model ID (default: APP_MODEL or claude-opus-5-5)')
+        p.add_argument('--model', help='Claude model ID (default: APP_MODEL or claude-haiku-5-5)')
         if name == 'chat':
             p.add_argument('--start', default='today', help='Start date: today (default) or YYYY-MM-DD')
         else:

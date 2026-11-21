@@ -23,8 +23,9 @@ def lookup_product(store: Store, url: str) -> dict:
     product = next((p for p in store.read('products.json') if match and p['asin'] == match.group(1)), None)
     if product is None:
         return {'status': 'not_found', 'url': url, 'hint': 'Ask the user for the item name and price.'}
+    # The description is page text from outside the app: data to report, never instructions (P11).
     return {'status': 'found', 'url': url, 'name': product['name'], 'price': product['price'],
-            'source': 'fictional product catalog'}
+            'description': product.get('description', ''), 'source': 'fictional product catalog'}
 
 
 def project_balances(store: Store, price: float, fees_day: float, fees_week: float, fees_month: float,
