@@ -1,4 +1,4 @@
-"""Financial Advisor's MCP server: product lookup, balance math, the wishlist and the simulated clock.
+"""Financial Advisor's MCP server: product lookup, balance math, the wishlist and reading the simulated clock.
 
 It has no bank or payment data. Those facts arrive only as messages from the other agents.
 """
@@ -7,7 +7,7 @@ from datetime import date
 import re
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
-from .common import horizon, logged, now, parse_when, read_json, set_now, today, write_json
+from .common import horizon, logged, now, read_json, today, write_json
 
 server = MCPServer('Financial Advisor')
 log = logged('Financial Advisor')
@@ -90,15 +90,6 @@ def get_clock() -> dict:
     current = now()
     return {'now': current.isoformat(timespec='minutes'), 'date': current.date().isoformat(),
             'weekday': f'{current:%A}'}
-
-
-@server.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False,
-                                         idempotent_hint=True, open_world_hint=False))
-@log
-def set_clock(when: str) -> dict:
-    """Move the shared simulated clock to `when` ("YYYY-MM-DD" for 09:00 that day, or
-    "YYYY-MM-DDTHH:MM"), to simulate time passing. Only when the user explicitly asks."""
-    return set_now(parse_when(when))
 
 
 if __name__ == '__main__':

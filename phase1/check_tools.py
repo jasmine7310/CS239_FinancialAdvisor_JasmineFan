@@ -8,6 +8,7 @@ from contextlib import AsyncExitStack
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -97,12 +98,6 @@ async def demo():
                                                      {'url': 'https://www.amazon.com/dp/B0UNKNOWN0'}))
             print('\nUnknown link:', missing['status'])
 
-            # Time passes: reminders come due as the user moves the simulated clock.
-            for when in ('2026-10-30', '2026-10-31', '2026-11-23'):
-                unpack(await advisor.call_tool('set_clock', {'when': when}))
-                due = unpack(await advisor.call_tool('list_wishlist', {'due_only': True}))['items']
-                print(f'Clock {when}: reminders due ->', [i['name'] for i in due])
-            unpack(await advisor.call_tool('set_clock', {'when': '2026-10-24T09:00'}))
 
             # Paying a bill: Payment Manager records it, but only Bank Agent moves money.
             bills = unpack(await payments.call_tool('list_unpaid_bills', {}))['bills']
@@ -131,6 +126,18 @@ async def demo():
                   await debit('Bruin Credit Union', 'checking', 1850.00, 'P09'))
             print('Pay from an unknown account:', await debit('Fake Bank', 'checking', 10.00, 'P03'))
             print('Debit with no bill id:', await debit('Sunset Federal Bank', 'checking', 10.00, 'gift'))
+
+            # Time passes: paychecks arrive, past bills are paid automatically, reminders come due.
+            print()
+            for when in ('2026-10-30', '2026-10-31', '2026-11-23'):
+                # Only the user moves time: run the same command they would.
+                subprocess.run([sys.executable, '-m', 'phase1.clock', 'set', when], cwd=ROOT, env=env,
+                               check=True, capture_output=True)
+                due = unpack(await advisor.call_tool('list_wishlist', {'due_only': True}))['items']
+                fees = unpack(await payments.call_tool('get_upcoming_fees', {'scope': 'day'}))
+                total = unpack(await bank.call_tool('get_accounts', {}))['current_total']
+                print(f'Clock {when}: reminders due {[i["name"] for i in due]}; overdue bills '
+                      f'{fees["overdue_count"]}; total money {total}')
 
 
 if __name__ == '__main__':

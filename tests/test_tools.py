@@ -25,7 +25,8 @@ os.environ.pop('FINANCE_AS_OF', None)
 
 from phase1 import advisor_server as fa, bank_server as bank, payments_server as pm  # noqa: E402
 from phase1.app import PAYMENTS_POLICY, BANK_POLICY, ADVISOR_POLICY, profiles  # noqa: E402
-from phase1.common import TOOL_LOG, now, read_json, reset_data, today  # noqa: E402
+from phase1.common import TOOL_LOG, now, parse_when, read_json, reset_data, set_now, start, today  # noqa: E402
+from phase1.simulator import move_clock  # noqa: E402
 from phase1.clock import parse_step  # noqa: E402
 from phase1.rakazo import ModelConnection  # noqa: E402
 
@@ -73,7 +74,7 @@ class StartingData(Base):
     def test_reset_restores_seed(self):
         fa.add_to_wishlist(name='Thing', price=1, deduction='test')
         bank.debit_account(bank='Sunset Federal Bank', account_type='checking', amount=650, reference='P01')
-        fa.set_clock(when='2026-12-01')
+        move_clock(parse_when('2026-12-01'))
         reset_data()
         self.assertEqual(read_json('wishlist.json'), [])
         self.assertEqual(read_json('transactions.json'), [])
@@ -86,7 +87,7 @@ class ToolInventory(Base):
 
     def test_each_server_exposes_only_its_tools(self):
         self.assertEqual(tools_of(fa), {'lookup_product', 'project_balances', 'list_wishlist',
-                                        'add_to_wishlist', 'remove_from_wishlist', 'get_clock', 'set_clock'})
+                                        'add_to_wishlist', 'remove_from_wishlist', 'get_clock'})
         self.assertEqual(tools_of(pm), {'get_upcoming_fees', 'list_unpaid_bills', 'mark_bill_paid',
                                         'spending_chart'})
         self.assertEqual(tools_of(bank), {'get_accounts', 'get_projected_totals',
@@ -147,9 +148,9 @@ class Wishlist(Base):
         saved = fa.add_to_wishlist(name='NovaPlay 5', price=499.99, deduction='Savings dip today',
                                    reminder='week')['saved']
         self.assertEqual(saved['reminder'], '2026-10-31')
-        fa.set_clock(when='2026-10-30T23:59')
+        move_clock(parse_when('2026-10-30T23:59'))
         self.assertEqual(fa.list_wishlist(due_only=True)['items'], [])
-        fa.set_clock(when='2026-10-31')
+        move_clock(parse_when('2026-10-31'))
         self.assertEqual([i['name'] for i in fa.list_wishlist(due_only=True)['items']], ['NovaPlay 5'])
 
     def test_wait_a_month_reminder(self):
@@ -177,24 +178,24 @@ class Wishlist(Base):
 class Clock(Base):
     """P15: one simulated clock for every agent's tools, moved only on the user's request."""
 
-    def test_get_and_set_clock(self):
+    def test_get_and_move_clock(self):
         self.assertEqual(fa.get_clock(), {'now': '2026-10-24T09:00', 'date': '2026-10-24', 'weekday': 'Saturday'})
-        moved = fa.set_clock(when='2026-10-31T18:30')
+        moved = move_clock(parse_when('2026-10-31T18:30'))
         self.assertEqual((moved['previous'], moved['now']), ('2026-10-24T09:00:00', '2026-10-31T18:30:00'))
         self.assertEqual(fa.get_clock()['now'], '2026-10-31T18:30')
 
     def test_every_agent_sees_the_moved_clock(self):
-        fa.set_clock(when='2026-10-31')
+        move_clock(parse_when('2026-10-31'))
         self.assertEqual(pm.get_upcoming_fees(scope='day')['as_of'], '2026-10-31')
         self.assertEqual(bank.get_projected_totals()['as_of'], '2026-10-31')
-        # Bills due before 10-31 and still unpaid now count as overdue.
-        self.assertEqual(pm.get_upcoming_fees(scope='day')['overdue_count'], 7)
+        # Bills due before 10-31 were paid automatically as time passed, so none is overdue.
+        self.assertEqual(pm.get_upcoming_fees(scope='day')['overdue_count'], 0)
 
     def test_paychecks_arrive_when_the_clock_reaches_them(self):
         before = bank.get_accounts()['current_total']
-        fa.set_clock(when='2026-10-29T23:00')
+        set_now(parse_when('2026-10-29T23:00'))  # the bare clock: no bills settled
         self.assertEqual(bank.get_accounts()['current_total'], before)
-        fa.set_clock(when='2026-10-30')
+        set_now(parse_when('2026-10-30'))
         self.assertEqual(round(bank.get_accounts()['current_total'] - before, 2), 1650.0)
         # Received paychecks are no longer "expected", so nothing is counted twice.
         self.assertEqual(bank.get_projected_totals()['expected_deposits']['week'], 0)
@@ -204,23 +205,47 @@ class Clock(Base):
 
     def test_console_recheck_a_week_later(self):
         """Episode 10: on 10-31 the paycheck has arrived but rent on 11-01 is in the week window."""
-        fa.set_clock(when='2026-10-31')
+        move_clock(parse_when('2026-10-31'))
         self.assertEqual(advise(CONSOLE), 'month')
 
     def test_ledger_uses_simulated_time(self):
-        fa.set_clock(when='2026-11-02T10:15')
-        bank.debit_account(bank='Sunset Federal Bank', account_type='checking', amount=650, reference='P01')
-        entry = read_json('transactions.json')[0]
-        self.assertEqual((entry['date'], entry['timestamp']), ('2026-11-02', '2026-11-02T10:15:00'))
+        move_clock(parse_when('2026-11-02T10:15'))
+        bank.debit_account(bank='Sunset Federal Bank', account_type='checking', amount=318.75, reference='P11')
+        entry = read_json('transactions.json')[-1]
+        self.assertEqual((entry['reference'], entry['date'], entry['timestamp']),
+                         ('P11', '2026-11-02', '2026-11-02T10:15:00'))
+        self.assertNotIn('source', entry)  # paid by the Bank Agent, not autopay
 
-    def test_env_override_blocks_set(self):
+    def test_env_override_blocks_moving(self):
         os.environ['FINANCE_AS_OF'] = '2026-10-26'
         try:
             self.assertEqual(fa.get_clock()['date'], '2026-10-26')
             with self.assertRaises(ValueError):
-                fa.set_clock(when='2026-11-01')
+                move_clock(parse_when('2026-11-01'))
         finally:
             os.environ.pop('FINANCE_AS_OF')
+
+    def test_reset_shifts_everything_to_a_start_day(self):
+        """run_servers --reset: every date moves by the same days; the answers stay the same."""
+        from datetime import date
+        days = reset_data(date(2026, 11, 20))
+        self.assertEqual(days, 27)
+        self.assertEqual(now().isoformat(), '2026-11-20T09:00:00')
+        self.assertEqual(start().isoformat(), '2026-11-20T09:00:00')
+        self.assertEqual(read_json('payments.json')[0]['due'], '2026-11-20')    # P01, due "today"
+        self.assertEqual(read_json('payments.json')[8]['due'], '2026-11-28')    # P09 rent, 27 days later
+        self.assertEqual(read_json('deposits.json')[0]['date'], '2026-11-26')   # first paycheck
+        self.assertEqual(pm.get_upcoming_fees(scope='day')['total'], 850.39)
+        self.assertEqual(bank.get_projected_totals()['through']['week'], '2026-11-27')
+        self.assertEqual((advise(CONSOLE), advise(HEADPHONES), advise(PC)), ('week', 'today', 'not now'))
+        self.assertEqual(fa.add_to_wishlist(name='x', price=1, deduction='y', reminder='week')['saved']['reminder'],
+                         '2026-11-27')
+
+    def test_moving_keeps_the_start(self):
+        from datetime import date
+        reset_data(date(2026, 11, 20))
+        move_clock(parse_when('2026-12-01'))
+        self.assertEqual(start().isoformat(), '2026-11-20T09:00:00')
 
     def test_cli_steps(self):
         from datetime import timedelta
@@ -230,6 +255,62 @@ class Clock(Base):
         for bad in ('7', 'd7', '7x', '7d junk'):
             with self.assertRaises(Exception):
                 parse_step(bad)
+
+
+class Autopay(Base):
+    """P2, P13, P15: moving the clock forward pays the bills of the days that passed and receives paychecks."""
+
+    def test_a_week_passes(self):
+        moved = move_clock(parse_when('2026-10-31'))
+        self.assertEqual([b[0] for b in moved['bills_paid']], ['P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P07'])
+        self.assertEqual((moved['paid_total'], moved['received_total']), (1272.07, 1650.0))
+        self.assertEqual(moved['paychecks'], [(1650.0, '2026-10-30')])
+        bills = {b['id']: b for b in read_json('payments.json')}
+        self.assertEqual((bills['P04']['status'], bills['P04']['paid_on']), ('paid', '2026-10-26'))
+        self.assertEqual(bills['P08']['status'], 'unpaid')  # due on the new day itself: still due
+        ledger = read_json('transactions.json')
+        self.assertEqual({e['source'] for e in ledger}, {'autopay'})
+        self.assertEqual(bills['P04']['confirmation'], next(e['confirmation'] for e in ledger if e['reference'] == 'P04'))
+        self.assertEqual(bank.get_accounts()['current_total'], round(10775.93 + 1650 - 1272.07, 2))
+        fees = pm.get_upcoming_fees(scope='day')
+        self.assertEqual((fees['total'], fees['overdue_count']), (39.99, 0))
+
+    def test_rent_is_paid_from_savings_without_overdraft(self):
+        """Checking cannot cover the 11-01 rent, so autopay takes it from savings; nothing goes negative."""
+        moved = move_clock(parse_when('2026-11-02'))
+        rent = next(b for b in moved['bills_paid'] if b[0] == 'P09')
+        self.assertEqual(rent[3], 'Westwood Savings & Loan savings')
+        self.assertEqual(moved['overdrawn'], [])
+        self.assertIn('Westwood Savings & Loan savings', moved['below_goal'])  # reported to the user
+        self.assertTrue(all(a['amount'] >= 0 for a in bank.get_accounts()['accounts']))
+
+    def test_autopaid_bill_cannot_be_paid_again(self):
+        move_clock(parse_when('2026-10-31'))
+        again = bank.debit_account(bank='Sunset Federal Bank', account_type='checking', amount=650, reference='P01')
+        self.assertTrue(again['reason'].startswith('duplicate_reference'))
+        with self.assertRaises(ValueError):
+            pm.mark_bill_paid(bill_id='P01', confirmation='TX-0099')
+
+    def test_no_agent_can_move_the_clock(self):
+        """Only the user's command moves time (and so triggers autopay); agents can only read the clock."""
+        writes = {'set_clock', 'move_clock', 'advance_clock', 'reset_clock'}
+        for module in (fa, pm, bank):
+            self.assertFalse(tools_of(module) & writes, module.__name__)
+
+    def test_moving_back_settles_nothing(self):
+        move_clock(parse_when('2026-10-31'))
+        paid = len(read_json('transactions.json'))
+        moved = move_clock(parse_when('2026-10-25'))
+        self.assertTrue(moved['went_back'])
+        self.assertEqual((moved['bills_paid'], len(read_json('transactions.json'))), ([], paid))
+
+    def test_same_outcomes_when_shifted(self):
+        """Autopay works the same on a run shifted to start on another day."""
+        from datetime import date
+        reset_data(date(2026, 11, 20))
+        moved = move_clock(parse_when('2026-11-27'))
+        self.assertEqual(moved['paid_total'], 1272.07)
+        self.assertEqual(moved['paychecks'], [(1650.0, '2026-11-26')])
 
 
 class Payments(Base):
@@ -325,8 +406,16 @@ class Prompts(Base):
             self.assertTrue(self.bots[bot].instructions.startswith('The current date and time come from'))
         self.assertIn('never reuse figures', self.bots['Financial Advisor'].instructions)
         self.assertIn('add_to_wishlist with reminder="week"', self.bots['Financial Advisor'].instructions)
-        self.assertIn('Never change the clock on your own', self.bots['Financial Advisor'].instructions)
+        self.assertIn('You cannot change the simulated date or time', self.bots['Financial Advisor'].instructions)
+        for bot in self.bots.values():
+            self.assertIn('the simulated clock always wins', bot.instructions)
         self.assertIn('Only after the user clearly confirms', self.bots['Payment Manager'].instructions)
+
+    def test_profiles_fit_rakazo_limits(self):
+        """Rakazo rejects descriptions over 4,000 characters and instructions over 20,000."""
+        for bot in self.bots.values():
+            self.assertTrue(0 < len(bot.description) <= 4000, bot.name)
+            self.assertLessEqual(len(bot.instructions), 20000, bot.name)
 
     def test_agent_files_hold_exact_prompts(self):
         files = {'Financial Advisor': 'financial_advisor.md', 'Payment Manager': 'payment_manager.md',

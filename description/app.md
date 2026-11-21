@@ -40,9 +40,10 @@ wants to buy.
    reason and a reminder date that matches the advice: a week out for "wait about a week", and a month out
    for "wait about a month" or "not now". On the user's first request once that date arrives, the
    Financial Advisor reminds them of the item and offers to check it again with fresh figures.
-3. **Simulated time.** All agents share a simulated clock, starting at 2026-10-24 09:00. The user moves it
-   forward (`python -m phase1.clock`, or by asking the Financial Advisor, which calls `set_clock`) to see
-   bills come due, paychecks arrive and reminders fire.
+3. **Simulated time.** All agents share a simulated clock. A reset starts it at 09:00 on today's date, shifting every bill and paycheck by the same days. The user moves it
+   forward with `python -m phase1.clock` (no agent can move it) to
+   live through those days: a simulator (not an agent) receives the paychecks and autopays the bills due
+   before the new date, and wishlist reminders come due.
 4. **Bill payment.** "Pay my debt bill from my Sunset Federal checking."
    1. The Payment Manager finds the bill and asks the user to confirm it.
    2. It asks the Bank Agent to debit the account.
@@ -51,5 +52,5 @@ wants to buy.
    4. The Payment Manager records the bill as paid, using the Bank Agent's confirmation id.
 5. **Spending summary.** The Payment Manager summarizes bills by type and draws a bar chart.
 
-All data is fictional (`data/*.json`). The simulated clock starts at 2026-10-24 09:00, so runs from a reset are
+All data is fictional (`data/*.json`). The seed is dated from 2026-10-24 (the dates in the episodes); because a reset shifts all dates together, runs from a reset are
 reproducible. The requirements and the 16 policies are in `policy.md`.

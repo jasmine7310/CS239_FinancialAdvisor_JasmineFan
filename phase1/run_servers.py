@@ -1,9 +1,10 @@
 """Start all three MCP servers over HTTP and keep them running until Ctrl+C."""
 import argparse
+from datetime import date
 import subprocess
 import sys
 from .app import PORTS
-from .common import ROOT, reset_data
+from .common import ROOT, SEED_START, now, reset_data
 
 MODULES = {'Financial Advisor': 'advisor_server', 'Payment Manager': 'payments_server',
            'Bank Agent': 'bank_server'}
@@ -12,11 +13,17 @@ MODULES = {'Financial Advisor': 'advisor_server', 'Payment Manager': 'payments_s
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--reset', action='store_true',
-                        help='Restore the starting data (empty wishlist, unpaid bills, original balances)')
+                        help='Restore the starting data (empty wishlist, unpaid bills, original balances), '
+                             'shifted so the simulated clock starts today')
+    parser.add_argument('--start', type=date.fromisoformat, metavar='YYYY-MM-DD',
+                        help=f'With --reset: start on this date instead of today (the seed\'s own is {SEED_START})')
     args = parser.parse_args()
+    if args.start and not args.reset:
+        parser.error('--start requires --reset')
     if args.reset:
-        reset_data()
-        print('Data reset from data/seed.')
+        days = reset_data(args.start or date.today())
+        print(f'Data reset from data/seed, every date shifted {days:+d} days: '
+              f'the simulated clock starts {now():%A %Y-%m-%d %H:%M}.')
     processes = []
     for agent, module in MODULES.items():
         processes.append(subprocess.Popen(

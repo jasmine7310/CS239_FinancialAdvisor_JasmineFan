@@ -8,8 +8,8 @@ from .rakazo import ModelConnection
 
 SERVERS = {ADVISOR: advisor_server.server, PAYMENTS: payments_server.server, BANK: bank_server.server}
 OWNS = {
-    ADVISOR: 'Wishlist (`data/wishlist.json`), product lookups (`data/products.json`, read-only) and, '
-             'on the user\'s request only, the shared simulated clock (`data/clock.json`).',
+    ADVISOR: 'Wishlist (`data/wishlist.json`), product lookups (`data/products.json`, read-only) and '
+             'read-only access to the shared simulated clock (`data/clock.json`), which only the user moves.',
     PAYMENTS: 'Bills and their paid status (`data/payments.json`).',
     BANK: 'Accounts and savings goals (`data/accounts.json`), scheduled deposits (`data/deposits.json`, '
           'read-only) and the debit ledger (`data/transactions.json`).',

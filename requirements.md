@@ -12,8 +12,8 @@ The user can also ask the Payment Manager to **pay a bill** from one of their ac
 only after the user explicitly confirms, and only the Bank Agent can debit an account. The system never
 buys the item itself.
 
-All data is fictional (`data/*.json`). Dates come from a shared **simulated clock** (`data/clock.json`), starting at **2026-10-24 09:00**. The user moves it forward
-(`python -m phase1.clock`, or by asking FA) to simulate time passing, and every bot is told to use it as "today". `run_servers --reset` restores
+All data is fictional (`data/*.json`). Dates come from a shared **simulated clock** (`data/clock.json`). The seed starts on **2026-10-24**; `run_servers --reset` shifts every date so the clock starts at 09:00 today, keeping the spacing of bills and paychecks. The user moves it forward
+(`python -m phase1.clock`; no agent can) to simulate time passing, and every bot is told to use it as "today". `run_servers --reset` restores
 the starting data from `data/seed/`.
 
 ## 2. Agents
@@ -62,7 +62,8 @@ Each agent's instructions include the exact format of the data it owns.
 | FR-13 | After confirmation, PM asks Bank to debit exactly the bill amount, using the bill id as reference. Bank calls `debit_account` and answers "completed" with a confirmation id (`TX-####`), or "refused" with a reason. |
 | FR-14 | On "completed", PM records the bill as paid with `mark_bill_paid` (bill id + confirmation id). Paid bills no longer count toward fee totals. On "refused", PM tells the user why and does not retry another account unless asked. |
 | FR-15 | Bank refuses a debit when the account doesn't exist, the reference isn't a bill id, the bill was already paid, funds are insufficient, or a savings account would drop below its goal. |
-| FR-16 | The user can read and move the simulated clock: `python -m phase1.clock` (show, `set`, `advance`, `reset`), or by asking FA, which calls `get_clock` / `set_clock`. All three agents' tools use the new time on their next call. |
+| FR-16 | The user can read and move the simulated clock: `python -m phase1.clock` (show, `set`, `advance`, `reset`). FA can read it with `get_clock`; no agent can move it. All three agents' tools use the new time on their next call. |
+| FR-17 | Moving the clock forward settles the days that passed: paychecks dated up to the new day are received, and every unpaid bill due before the new day is paid by autopay from the paycheck account (ledger `source: "autopay"`). Bills due on the new day stay due. |
 
 ## 5. Security requirements: what the system must never do
 
@@ -71,8 +72,8 @@ Each agent's instructions include the exact format of the data it owns.
 | ID | Requirement |
 |---|---|
 | AC-1 | Each agent may call only the tools on its own MCP server, so it can read only its own data store. |
-| AC-2 | No agent may buy the item or transfer money between accounts. The only way money moves is `debit_account` paying a bill (FR-12–15). Agents must never claim a payment happened without a Bank confirmation id. |
-| AC-3 | Separation of duties for writes: FA writes only the wishlist, and the simulated clock on the user's explicit request (`set_clock`); PM writes only bill status (`mark_bill_paid`); Bank alone changes balances and the ledger (`debit_account`). Deposits and products are read-only. |
+| AC-2 | No agent may buy the item or transfer money between accounts. The only way money moves is `debit_account` paying a bill (FR-12–15), plus the simulator's autopay of bills due before the new date when the user moves the clock forward (FR-17); no agent can trigger autopay on its own. Agents must never claim a payment happened without a Bank confirmation id. |
+| AC-3 | Separation of duties for writes: FA writes only the wishlist; no agent writes the simulated clock; PM writes only bill status (`mark_bill_paid`); Bank alone changes balances and the ledger (`debit_account`). Deposits and products are read-only. |
 | AC-4 | PM must never request, receive or infer balances or savings goals. Bank must never request or receive bill details beyond the bill id and amount it is asked to pay. |
 | AC-5 | FA must never initiate, request or forward a payment. It redirects the user to PM. |
 
@@ -116,7 +117,7 @@ Each agent's instructions include the exact format of the data it owns.
 | LC-1 | Fee and balance figures are valid only for the request in which they were obtained. FA re-requests them for each new purchase question. |
 | LC-2 | The wishlist (persistent storage) holds only name, price, dates and a general reason. It never holds balances, bank names, bill details or other agents' figures. |
 | LC-3 | A wishlist entry lives from a "wait about a week", "wait about a month" or "not now" decision until the user buys or declines the item. It is surfaced again on the first request once its reminder date arrives, and gets a new reminder date if the user keeps waiting. |
-| LC-4 | The data starts in a known state (empty wishlist, 20 unpaid bills, original balances, empty ledger, clock at 2026-10-24 09:00) and is reset only on the user's instruction (`run_servers --reset`). |
+| LC-4 | The data starts in a known state (empty wishlist, 20 unpaid bills, original balances, empty ledger, clock at 09:00 on the reset day, all dates shifted by the same amount) and is reset only on the user's instruction (`run_servers --reset`). |
 | LC-5 | A bill moves one way, from unpaid to paid, and can be paid only once (enforced by both `debit_account` and `mark_bill_paid`). |
 | LC-6 | All agents use the same simulated clock. Fees, overdue bills, balances, projections and reminder dates are computed against it, never against the real calendar. Only the user may move it. |
 

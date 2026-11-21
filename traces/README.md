@@ -23,7 +23,7 @@ from `run_servers --reset`.
 
 **Changed after these recordings:** the Financial Advisor now saves "wait about a week" and "wait about
 a month" items to the wishlist too, with reminders 7 or 30 days out, and the user can move a shared
-simulated clock (`python -m phase1.clock`, or `set_clock` on request). So the recorded `console` run
+simulated clock (`python -m phase1.clock`; moving it forward receives paychecks and autopays past bills). So the recorded `console` run
 has no wishlist entry, while a new run would save the console with a reminder on 2026-10-31
 (episodes 1 and 10). Step-by-step walkthroughs are in [`../description/episodes/`](../description/episodes/).
 

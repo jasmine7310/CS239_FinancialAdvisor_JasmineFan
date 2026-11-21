@@ -54,6 +54,8 @@ class BotProfile:
     instructions: str
     model: ModelConnection
     mcp: tuple[MCPConnection, ...] = ()
+    # Shown in Rakazo's bot list; it caps descriptions at 4,000 characters, instructions at 20,000.
+    description: str = ''
 
 
 class Rakazo:
@@ -142,11 +144,11 @@ class Rakazo:
                          'baseUrl': p.model.base_url, 'apiKey': p.model.api_key})
             if p.name in existing:
                 bot = {'id': existing[p.name]}
-                self.rpc('bots/update', {'botId': bot['id'], 'description': p.instructions,
+                self.rpc('bots/update', {'botId': bot['id'], 'description': p.description or p.instructions[:4000],
                                         'instructions': p.instructions})
             else:
                 bot = self.rpc('bots/create', {'name': p.name, 'title': '',
-                               'description': p.instructions, 'instructions': p.instructions,
+                               'description': p.description or p.instructions[:4000], 'instructions': p.instructions,
                                'notifyOnFinish': False})
             self.rpc('bots/update', {'botId': bot['id'], 'modelProvider': p.model.provider,
                                     'modelId': p.model.model_id})
