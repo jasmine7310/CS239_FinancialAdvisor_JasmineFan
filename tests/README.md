@@ -32,7 +32,18 @@ in `policy.md`.
 | | `test_projected_totals_include_deposits_and_interest` | Projections add scheduled paychecks and interest; scope end dates are 10-24, 10-31, 11-23 | P15 |
 | Wishlist | `test_add_list_remove` | An entry has exactly the six wishlist fields, the demo date and a 30-day default reminder; it is listed and removed (case-insensitive) | P14 |
 | | `test_due_reminders` | `due_only` returns items whose reminder date has arrived | P14 |
+| | `test_wait_a_week_reminds_after_a_week` | The console's "wait about a week" is saved with reminder 2026-10-31, is not due on 10-30 at 23:59, and is due on 10-31 | P14 |
+| | `test_wait_a_month_reminder` | `reminder="month"` gives today + 30 (2026-11-23) | P14 |
+| | `test_same_item_updates_entry` | Saving the same item again (any letter case) updates its entry instead of adding a second one | P14 |
+| | `test_rejects_past_reminder` | A reminder date before today is rejected | P14 |
 | | `test_rejects_invalid_entries` | An empty name, negative price or blank reason is rejected | P14 |
+| Clock | `test_get_and_set_clock` | `get_clock` reads 2026-10-24 09:00 (a Saturday); `set_clock` moves it and returns the previous and new time | P15 |
+| | `test_every_agent_sees_the_moved_clock` | After `set_clock`, the Payment Manager's and the Bank Agent's tools report the new date, and earlier unpaid bills count as overdue | P13, P15 |
+| | `test_paychecks_arrive_when_the_clock_reaches_them` | The 10-30 paycheck is in the balance from 10-30 on (not at 10-29 23:00), is no longer counted as expected, and can pay a bill | P15 |
+| | `test_console_recheck_a_week_later` | On 10-31 the console check gives "wait about a month": rent on 11-01 is in the week window (episode 10) | P10, P14 |
+| | `test_ledger_uses_simulated_time` | Ledger entries carry the simulated date and time | P15, P16 |
+| | `test_env_override_blocks_set` | With `FINANCE_AS_OF` set, the clock reads it and `set_clock` refuses | P15 |
+| | `test_cli_steps` | `python -m phase1.clock advance` accepts 7d, 2w, 1d6h and rejects malformed steps | P15 |
 | Payments | `test_pay_bill_end_to_end` | Paying P01 ($650) from Sunset checking gives TX-0001, lowers the balance, writes the ledger and marks P01 paid; the day's fees drop to $200.39 and the console advice is unchanged | P2, P8, P13 |
 | | `test_debit_refuses_below_savings_goal` | $210 from Westwood savings is refused (`below_savings_goal`) and no data changes | P12 |
 | | `test_debit_refuses_insufficient_funds` | $1,850 from Bruin checking is refused (`insufficient_funds`) | P12 |

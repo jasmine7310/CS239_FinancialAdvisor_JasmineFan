@@ -25,7 +25,8 @@ os.environ.pop('FINANCE_AS_OF', None)
 
 from phase1 import advisor_server as fa, bank_server as bank, payments_server as pm  # noqa: E402
 from phase1.app import PAYMENTS_POLICY, BANK_POLICY, ADVISOR_POLICY, profiles  # noqa: E402
-from phase1.common import TOOL_LOG, read_json, reset_data  # noqa: E402
+from phase1.common import TOOL_LOG, now, read_json, reset_data, today  # noqa: E402
+from phase1.clock import parse_step  # noqa: E402
 from phase1.rakazo import ModelConnection  # noqa: E402
 
 CONSOLE, HEADPHONES, PC = ('https://www.amazon.com/dp/B0NOVAPLY5',
@@ -67,14 +68,17 @@ class StartingData(Base):
         self.assertFalse(any('goal' in a for a in accounts if a['type'] == 'checking'))
         self.assertTrue(all(p['status'] == 'unpaid' for p in read_json('payments.json')))
         self.assertEqual(read_json('transactions.json'), [])
+        self.assertEqual(now().isoformat(), '2026-10-24T09:00:00')
 
     def test_reset_restores_seed(self):
         fa.add_to_wishlist(name='Thing', price=1, deduction='test')
         bank.debit_account(bank='Sunset Federal Bank', account_type='checking', amount=650, reference='P01')
+        fa.set_clock(when='2026-12-01')
         reset_data()
         self.assertEqual(read_json('wishlist.json'), [])
         self.assertEqual(read_json('transactions.json'), [])
         self.assertEqual(read_json('accounts.json')[0]['amount'], 742.18)
+        self.assertEqual(today().isoformat(), '2026-10-24')
 
 
 class ToolInventory(Base):
@@ -82,7 +86,7 @@ class ToolInventory(Base):
 
     def test_each_server_exposes_only_its_tools(self):
         self.assertEqual(tools_of(fa), {'lookup_product', 'project_balances', 'list_wishlist',
-                                        'add_to_wishlist', 'remove_from_wishlist'})
+                                        'add_to_wishlist', 'remove_from_wishlist', 'get_clock', 'set_clock'})
         self.assertEqual(tools_of(pm), {'get_upcoming_fees', 'list_unpaid_bills', 'mark_bill_paid',
                                         'spending_chart'})
         self.assertEqual(tools_of(bank), {'get_accounts', 'get_projected_totals',
@@ -122,12 +126,13 @@ class PurchaseAdvice(Base):
 
 
 class Wishlist(Base):
-    """P14: wishlist format, default reminder, removal."""
+    """P14: wishlist format, reminders by wait period, updates, removal."""
 
     def test_add_list_remove(self):
         saved = fa.add_to_wishlist(name='Titan RTX Gaming Desktop', price=2899, deduction='Over budget')['saved']
         self.assertEqual(set(saved), {'name', 'price', 'date', 'timestamp', 'deduction', 'reminder'})
         self.assertEqual((saved['date'], saved['reminder']), ('2026-10-24', '2026-11-23'))
+        self.assertEqual(saved['timestamp'], '2026-10-24T09:00:00')  # simulated, not real time
         self.assertEqual(fa.list_wishlist(due_only=True)['items'], [])
         self.assertEqual(len(fa.list_wishlist()['items']), 1)
         self.assertEqual(fa.remove_from_wishlist(name='titan rtx gaming desktop')['removed'], 1)
@@ -136,11 +141,95 @@ class Wishlist(Base):
         fa.add_to_wishlist(name='Due', price=5, deduction='x', reminder='2026-10-24')
         self.assertEqual([i['name'] for i in fa.list_wishlist(due_only=True)['items']], ['Due'])
 
+    def test_wait_a_week_reminds_after_a_week(self):
+        """The console's "wait about a week" is saved and comes due exactly a week later."""
+        self.assertEqual(advise(CONSOLE), 'week')
+        saved = fa.add_to_wishlist(name='NovaPlay 5', price=499.99, deduction='Savings dip today',
+                                   reminder='week')['saved']
+        self.assertEqual(saved['reminder'], '2026-10-31')
+        fa.set_clock(when='2026-10-30T23:59')
+        self.assertEqual(fa.list_wishlist(due_only=True)['items'], [])
+        fa.set_clock(when='2026-10-31')
+        self.assertEqual([i['name'] for i in fa.list_wishlist(due_only=True)['items']], ['NovaPlay 5'])
+
+    def test_wait_a_month_reminder(self):
+        saved = fa.add_to_wishlist(name='x', price=1, deduction='y', reminder='month')['saved']
+        self.assertEqual(saved['reminder'], '2026-11-23')
+
+    def test_same_item_updates_entry(self):
+        fa.add_to_wishlist(name='NovaPlay 5', price=499.99, deduction='a', reminder='week')
+        result = fa.add_to_wishlist(name='novaplay 5', price=499.99, deduction='b', reminder='month')
+        self.assertTrue(result['updated'])
+        self.assertEqual(result['wishlist_size'], 1)
+        self.assertEqual(fa.list_wishlist()['items'][0]['reminder'], '2026-11-23')
+
+    def test_rejects_past_reminder(self):
+        with self.assertRaises(ValueError):
+            fa.add_to_wishlist(name='a', price=1, deduction='x', reminder='2026-10-01')
+
     def test_rejects_invalid_entries(self):
         for bad in [dict(name='', price=1, deduction='x'), dict(name='a', price=-1, deduction='x'),
                     dict(name='a', price=1, deduction=' ')]:
             with self.assertRaises(ValueError):
                 fa.add_to_wishlist(**bad)
+
+
+class Clock(Base):
+    """P15: one simulated clock for every agent's tools, moved only on the user's request."""
+
+    def test_get_and_set_clock(self):
+        self.assertEqual(fa.get_clock(), {'now': '2026-10-24T09:00', 'date': '2026-10-24', 'weekday': 'Saturday'})
+        moved = fa.set_clock(when='2026-10-31T18:30')
+        self.assertEqual((moved['previous'], moved['now']), ('2026-10-24T09:00:00', '2026-10-31T18:30:00'))
+        self.assertEqual(fa.get_clock()['now'], '2026-10-31T18:30')
+
+    def test_every_agent_sees_the_moved_clock(self):
+        fa.set_clock(when='2026-10-31')
+        self.assertEqual(pm.get_upcoming_fees(scope='day')['as_of'], '2026-10-31')
+        self.assertEqual(bank.get_projected_totals()['as_of'], '2026-10-31')
+        # Bills due before 10-31 and still unpaid now count as overdue.
+        self.assertEqual(pm.get_upcoming_fees(scope='day')['overdue_count'], 7)
+
+    def test_paychecks_arrive_when_the_clock_reaches_them(self):
+        before = bank.get_accounts()['current_total']
+        fa.set_clock(when='2026-10-29T23:00')
+        self.assertEqual(bank.get_accounts()['current_total'], before)
+        fa.set_clock(when='2026-10-30')
+        self.assertEqual(round(bank.get_accounts()['current_total'] - before, 2), 1650.0)
+        # Received paychecks are no longer "expected", so nothing is counted twice.
+        self.assertEqual(bank.get_projected_totals()['expected_deposits']['week'], 0)
+        # The Bank Agent can now pay a bill the checking account alone could not cover before.
+        paid = bank.debit_account(bank='Sunset Federal Bank', account_type='checking', amount=1850, reference='P09')
+        self.assertEqual(paid['status'], 'completed')
+
+    def test_console_recheck_a_week_later(self):
+        """Episode 10: on 10-31 the paycheck has arrived but rent on 11-01 is in the week window."""
+        fa.set_clock(when='2026-10-31')
+        self.assertEqual(advise(CONSOLE), 'month')
+
+    def test_ledger_uses_simulated_time(self):
+        fa.set_clock(when='2026-11-02T10:15')
+        bank.debit_account(bank='Sunset Federal Bank', account_type='checking', amount=650, reference='P01')
+        entry = read_json('transactions.json')[0]
+        self.assertEqual((entry['date'], entry['timestamp']), ('2026-11-02', '2026-11-02T10:15:00'))
+
+    def test_env_override_blocks_set(self):
+        os.environ['FINANCE_AS_OF'] = '2026-10-26'
+        try:
+            self.assertEqual(fa.get_clock()['date'], '2026-10-26')
+            with self.assertRaises(ValueError):
+                fa.set_clock(when='2026-11-01')
+        finally:
+            os.environ.pop('FINANCE_AS_OF')
+
+    def test_cli_steps(self):
+        from datetime import timedelta
+        self.assertEqual(parse_step('7d'), timedelta(days=7))
+        self.assertEqual(parse_step('1d6h'), timedelta(days=1, hours=6))
+        self.assertEqual(parse_step('2w'), timedelta(weeks=2))
+        for bad in ('7', 'd7', '7x', '7d junk'):
+            with self.assertRaises(Exception):
+                parse_step(bad)
 
 
 class Payments(Base):
@@ -233,8 +322,10 @@ class Prompts(Base):
         for bot, policy in [('Financial Advisor', ADVISOR_POLICY), ('Payment Manager', PAYMENTS_POLICY),
                             ('Bank Agent', BANK_POLICY)]:
             self.assertIn(policy, self.bots[bot].instructions)
-            self.assertTrue(self.bots[bot].instructions.startswith('Today is 2026-10-24.'))
+            self.assertTrue(self.bots[bot].instructions.startswith('The current date and time come from'))
         self.assertIn('never reuse figures', self.bots['Financial Advisor'].instructions)
+        self.assertIn('add_to_wishlist with reminder="week"', self.bots['Financial Advisor'].instructions)
+        self.assertIn('Never change the clock on your own', self.bots['Financial Advisor'].instructions)
         self.assertIn('Only after the user clearly confirms', self.bots['Payment Manager'].instructions)
 
     def test_agent_files_hold_exact_prompts(self):

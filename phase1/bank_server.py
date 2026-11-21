@@ -1,14 +1,16 @@
 """Bank Agent's MCP server: accounts, projected totals, the savings-threshold check and bill debits.
 
 The savings threshold is the sum of every savings account's goal. debit_account is the only
-tool in the system that changes a balance.
+tool in the system that changes a balance. accounts.json holds balances before any scheduled
+deposit; a deposit counts as received once the simulated clock reaches its date, so moving the
+clock forward pays the user's paychecks in.
 """
 import argparse
-from datetime import date, datetime
+from datetime import date
 import re
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
-from .common import SCOPES, horizon, logged, read_json, today, write_json
+from .common import SCOPES, horizon, logged, now, read_json, today, write_json
 
 server = MCPServer('Bank Agent')
 log = logged('Bank Agent')
@@ -20,11 +22,26 @@ def savings_threshold(accounts: list[dict]) -> float:
     return round(sum(a.get('goal', 0) for a in accounts if a['type'] == 'savings'), 2)
 
 
+def received(deposit: dict) -> bool:
+    return date.fromisoformat(deposit['date']) <= today()
+
+
+def current_accounts() -> list[dict]:
+    """Stored balances plus every deposit the simulated clock has reached."""
+    accounts = read_json('accounts.json')
+    for d in filter(received, read_json('deposits.json')):
+        for a in accounts:
+            if a['bank'] == d['bank'] and a['type'] == d['type']:
+                a['amount'] = round(a['amount'] + d['amount'], 2)
+    return accounts
+
+
 @server.tool(annotations=READ_ONLY)
 @log
 def get_accounts() -> dict:
-    """Every account with its balance, savings goal and APY, plus the savings threshold."""
-    accounts = read_json('accounts.json')
+    """Every account with its current balance (received paychecks included), savings goal and APY,
+    plus the savings threshold."""
+    accounts = current_accounts()
     return {'as_of': today().isoformat(), 'accounts': accounts,
             'current_total': round(sum(a['amount'] for a in accounts), 2),
             'savings_threshold': savings_threshold(accounts)}
@@ -34,16 +51,15 @@ def get_accounts() -> dict:
 @log
 def get_projected_totals() -> dict:
     """Total money across all accounts at the end of each scope (day, week, month),
-    including scheduled deposits and expected interest."""
-    accounts = read_json('accounts.json')
-    deposits = read_json('deposits.json')
+    including scheduled deposits still to come and expected interest."""
+    accounts = current_accounts()
+    deposits = [d for d in read_json('deposits.json') if not received(d)]
     current = sum(a['amount'] for a in accounts)
     result = {'as_of': today().isoformat(), 'current_total': round(current, 2),
               'through': {s: horizon(s).isoformat() for s in SCOPES},
               'expected_deposits': {}, 'expected_interest': {}, 'projected_total': {}}
     for scope, days in SCOPES.items():
-        incoming = sum(d['amount'] for d in deposits
-                       if today() <= date.fromisoformat(d['date']) <= horizon(scope))
+        incoming = sum(d['amount'] for d in deposits if date.fromisoformat(d['date']) <= horizon(scope))
         interest = sum(a['amount'] * a.get('apy', 0) * max(days, 1) / 365 for a in accounts)
         result['expected_deposits'][scope] = round(incoming, 2)
         result['expected_interest'][scope] = round(interest, 2)
@@ -80,18 +96,19 @@ def debit_account(bank: str, account_type: str, amount: float, reference: str) -
     if any(t['reference'] == reference for t in ledger):
         return refused('duplicate_reference: this bill was already paid')
     accounts = read_json('accounts.json')
-    account = next((a for a in accounts if a['bank'].lower() == bank.strip().lower()
-                    and a['type'] == account_type.strip().lower()), None)
+    find = lambda rows: next((a for a in rows if a['bank'].lower() == bank.strip().lower()
+                              and a['type'] == account_type.strip().lower()), None)
+    account, balance = find(accounts), find(current_accounts())
     if account is None:
         return refused('account_not_found')
-    if amount > account['amount']:
+    if amount > balance['amount']:
         return refused('insufficient_funds')
-    if account['type'] == 'savings' and account['amount'] - amount < account.get('goal', 0):
+    if account['type'] == 'savings' and balance['amount'] - amount < account.get('goal', 0):
         return refused('below_savings_goal')
     account['amount'] = round(account['amount'] - amount, 2)
     entry = {'confirmation': f'TX-{len(ledger) + 1:04d}', 'bank': account['bank'],
              'type': account['type'], 'amount': amount, 'reference': reference,
-             'date': today().isoformat(), 'timestamp': datetime.now().isoformat(timespec='seconds')}
+             'date': today().isoformat(), 'timestamp': now().isoformat(timespec='seconds')}
     write_json('accounts.json', accounts)
     write_json('transactions.json', ledger + [entry])
     return {'status': 'completed', 'confirmation': entry['confirmation'], 'reference': reference,

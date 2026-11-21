@@ -22,7 +22,9 @@
 
 ## Expected outcome
 
-**"Wait about a week before buying the NovaPlay 5 ($499.99)."** Buying today would dip below the savings threshold because $850.39 of bills are due now. The 10-30 paycheck fixes that within a week. The run produced exactly this answer. 8 tool calls, 3 requests between agents, no wishlist entry.
+**"Wait about a week before buying the NovaPlay 5 ($499.99)."** Buying today would dip below the savings threshold because $850.39 of bills are due now. The 10-30 paycheck fixes that within a week. The run produced exactly this answer, with 8 tool calls and 3 requests between agents.
+
+**Changed since this recording (P14):** the Financial Advisor now also saves "wait about a week" items. With the current prompts there is a 10th step: `add_to_wishlist(name="NovaPlay 5 Gaming Console (1TB)", price=499.99, deduction=<general reason>, reminder="week")`, which stores the reminder date **2026-10-31**, and the answer tells the user it will remind them then. Example 10 shows that reminder coming due. The recorded run predates this change and has no wishlist entry.
 
 ## Policy connection
 

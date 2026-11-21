@@ -55,7 +55,8 @@ async def demo():
         # Start from the seed (unpaid bills, original balances), whatever live runs have changed.
         for seed in (ROOT / 'data' / 'seed').glob('*.json'):
             shutil.copy(seed, Path(folder) / 'data' / seed.name)
-        env = {**os.environ, 'FINANCE_DATA_DIR': str(Path(folder) / 'data'),
+        env = {**{k: v for k, v in os.environ.items() if k != 'FINANCE_AS_OF'},
+               'FINANCE_DATA_DIR': str(Path(folder) / 'data'),
                'FINANCE_TOOL_LOG': str(Path(folder) / 'tool_calls.jsonl')}
         async with AsyncExitStack() as stack:
             advisor = await connect(stack, 'advisor_server', env)
@@ -85,15 +86,23 @@ async def demo():
                 print('  remaining after fees + price:', projected)
                 print('  above threshold:', {s: c['above_threshold'] for s, c in checks.items()})
                 print('  advice:', verdict)
-                if verdict.startswith('do not'):
+                if verdict != 'buy today':
                     saved = unpack(await advisor.call_tool('add_to_wishlist', {
                         'name': product['name'], 'price': product['price'],
-                        'deduction': 'Buying it would push savings below the goal within 30 days.'}))
-                    print('  wishlist entry:', saved['saved'])
+                        'deduction': 'Buying it now would push savings below the goal.',
+                        'reminder': 'week' if verdict == 'wait about a week' else 'month'}))
+                    print('  wishlist entry, reminder:', saved['saved']['reminder'])
 
             missing = unpack(await advisor.call_tool('lookup_product',
                                                      {'url': 'https://www.amazon.com/dp/B0UNKNOWN0'}))
             print('\nUnknown link:', missing['status'])
+
+            # Time passes: reminders come due as the user moves the simulated clock.
+            for when in ('2026-10-30', '2026-10-31', '2026-11-23'):
+                unpack(await advisor.call_tool('set_clock', {'when': when}))
+                due = unpack(await advisor.call_tool('list_wishlist', {'due_only': True}))['items']
+                print(f'Clock {when}: reminders due ->', [i['name'] for i in due])
+            unpack(await advisor.call_tool('set_clock', {'when': '2026-10-24T09:00'}))
 
             # Paying a bill: Payment Manager records it, but only Bank Agent moves money.
             bills = unpack(await payments.call_tool('list_unpaid_bills', {}))['bills']
