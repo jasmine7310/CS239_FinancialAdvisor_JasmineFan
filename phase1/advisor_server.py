@@ -1,13 +1,13 @@
-"""Financial Advisor's MCP server: product lookup, balance math and the wishlist.
+"""Financial Advisor's MCP server: product lookup, balance math, the wishlist and reading the simulated clock.
 
 It has no bank or payment data. Those facts arrive only as messages from the other agents.
 """
 import argparse
-from datetime import date, datetime, timedelta
+from datetime import date
 import re
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
-from .common import logged, read_json, today, write_json
+from .common import horizon, logged, now, read_json, today, write_json
 
 server = MCPServer('Financial Advisor')
 log = logged('Financial Advisor')
@@ -43,28 +43,33 @@ def project_balances(price: float, fees_day: float, fees_week: float, fees_month
 @server.tool(annotations=READ_ONLY)
 @log
 def list_wishlist(due_only: bool = False) -> dict:
-    """Return wishlist items; due_only keeps items whose reminder date has arrived."""
+    """Return wishlist items; due_only keeps items whose reminder date has arrived (on the simulated clock)."""
     items = read_json('wishlist.json')
     if due_only:
         items = [i for i in items if date.fromisoformat(i['reminder']) <= today()]
-    return {'as_of': today().isoformat(), 'items': items}
+    return {'as_of': today().isoformat(), 'now': now().isoformat(timespec='minutes'), 'items': items}
 
 
 @server.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False,
-                                         idempotent_hint=False, open_world_hint=False))
+                                         idempotent_hint=True, open_world_hint=False))
 @log
-def add_to_wishlist(name: str, price: float, deduction: str, reminder: str = '') -> dict:
-    """Save an item the user should not buy yet. reminder is YYYY-MM-DD (default: 30 days)."""
+def add_to_wishlist(name: str, price: float, deduction: str, reminder: str = 'month') -> dict:
+    """Save an item the user should not buy right now, with when to remind them: reminder is "week"
+    (7 days, for "wait about a week"), "month" (30 days, for "wait about a month" or "not now"),
+    or a YYYY-MM-DD date. Asking about an item already on the wishlist updates its entry."""
     if price < 0 or not name.strip() or not deduction.strip():
         raise ValueError('name, deduction and a nonnegative price are required')
-    reminder_date = date.fromisoformat(reminder) if reminder else today() + timedelta(days=30)
+    reminder = reminder.strip().lower() or 'month'
+    reminder_date = horizon(reminder) if reminder in ('week', 'month') else date.fromisoformat(reminder)
+    if reminder_date < today():
+        raise ValueError('reminder must not be in the past')
     entry = {'name': name.strip(), 'price': price, 'date': today().isoformat(),
-             'timestamp': datetime.now().isoformat(timespec='seconds'),
+             'timestamp': now().isoformat(timespec='seconds'),
              'deduction': deduction.strip(), 'reminder': reminder_date.isoformat()}
     items = read_json('wishlist.json')
-    items.append(entry)
-    write_json('wishlist.json', items)
-    return {'saved': entry, 'wishlist_size': len(items)}
+    kept = [i for i in items if i['name'].lower() != entry['name'].lower()]
+    write_json('wishlist.json', kept + [entry])
+    return {'saved': entry, 'updated': len(kept) < len(items), 'wishlist_size': len(kept) + 1}
 
 
 @server.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True,
@@ -76,6 +81,15 @@ def remove_from_wishlist(name: str) -> dict:
     kept = [i for i in items if i['name'].lower() != name.strip().lower()]
     write_json('wishlist.json', kept)
     return {'removed': len(items) - len(kept), 'wishlist_size': len(kept)}
+
+
+@server.tool(annotations=READ_ONLY)
+@log
+def get_clock() -> dict:
+    """The simulated date and time all agents use as "now"."""
+    current = now()
+    return {'now': current.isoformat(timespec='minutes'), 'date': current.date().isoformat(),
+            'weekday': f'{current:%A}'}
 
 
 if __name__ == '__main__':

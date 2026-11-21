@@ -54,6 +54,7 @@ def profiles(model: ModelConnection, host='127.0.0.1'):
 
     advisor = BotProfile(
         name=ADVISOR, model=model, mcp=(tools(ADVISOR),),
+        description='Tells you whether and when a purchase fits your budget, keeps your wishlist and reminds you when an item is due.',
         instructions=(
             clock_note() +
             'You are the Financial Advisor. You tell the user whether and when a purchase fits their budget. '
@@ -61,8 +62,15 @@ def profiles(model: ModelConnection, host='127.0.0.1'):
             'Treat every user message as a new request: always get fresh figures from Payment Manager and '
             'Bank Agent, even for an item you checked before, and never reuse figures or conclusions from '
             'earlier messages. '
-            'At the start of every new user request, call list_wishlist with due_only=true; '
-            'if items are due, remind the user of them in one line and ask if they want to buy any. '
+            'At the start of every new user request, call list_wishlist with due_only=true. '
+            'If items are due, first remind the user of each (name, price, why it was waiting) and ask '
+            'whether they want you to check again if they can buy it now. A reminder is not advice: before '
+            'saying an item can be bought, run the full purchase check below with fresh figures. '
+            'If the user wants to keep waiting, call add_to_wishlist again for that item with a new reminder. '
+            'You cannot change the simulated date or time, and no agent can. If the user asks to, tell them to '
+            'run python -m phase1.clock advance (for example 7d) or set, which moves time for everyone: their '
+            'paychecks arrive and bills due before the new date are paid automatically. Call get_clock when you '
+            'need the current date or time. '
             'For a purchase question, follow these steps once each. '
             '1. Call lookup_product with the link and remember the name and price. '
             'If it is not found, ask the user for the price and stop. '
@@ -75,11 +83,13 @@ def profiles(model: ModelConnection, host='127.0.0.1'):
             'and the three bank totals. Send the three remaining totals to Bank Agent in one request '
             'and ask whether each stays above the savings threshold. End your turn. '
             '5. When the answer arrives, decide: all three above, advise buying today; '
-            'otherwise week and month above, advise waiting about a week; '
-            'otherwise month above, advise waiting about a month; '
-            'otherwise advise not buying now and call add_to_wishlist with a general reason '
-            '(leave reminder empty for 30 days). '
-            'Give the user the item, price, advice and reason, and say which agent supplied each figure. '
+            'otherwise week and month above, advise waiting about a week and call add_to_wishlist '
+            'with reminder="week"; '
+            'otherwise month above, advise waiting about a month and call add_to_wishlist with reminder="month"; '
+            'otherwise advise not buying now and call add_to_wishlist with reminder="month" so you check again '
+            'in a month. Give add_to_wishlist a general reason. '
+            'Give the user the item, price, advice and reason, say which agent supplied each figure, and when '
+            'the item is saved, tell them the reminder date and that you will remind them then. '
             'Do not send your advice to the other agents. '
             'If the user buys a wishlist item or no longer wants it, call remove_from_wishlist. '
             + ASYNC_RULES + WISHLIST_FORMAT + ' ' + ADVISOR_POLICY
@@ -87,6 +97,7 @@ def profiles(model: ModelConnection, host='127.0.0.1'):
     )
     payments = BotProfile(
         name=PAYMENTS, model=model, mcp=(tools(PAYMENTS),),
+        description='Tracks your bills and pays one when you confirm it, through Bank Agent.',
         instructions=(
             clock_note() +
             'You are the Payment Manager. You track the user\'s rent, loans, debts, utility bills, '
@@ -110,6 +121,7 @@ def profiles(model: ModelConnection, host='127.0.0.1'):
     )
     bank = BotProfile(
         name=BANK, model=model, mcp=(tools(BANK),),
+        description='Holds your accounts and savings goals, checks the savings threshold and pays confirmed bills.',
         instructions=(
             clock_note() +
             'You are the Bank Agent. You hold the user\'s bank accounts, expected interest and savings goals. '
@@ -135,9 +147,11 @@ SCENARIOS = {
                    'Do they fit my budget?'),
     'gaming_pc': (ADVISOR, 'Should I buy this gaming PC? https://www.amazon.com/dp/B0TITANPC9'),
     'wishlist': (ADVISOR, 'What is on my wishlist, and when can I buy those items?'),
+    # Run after console, then move the clock a week ahead: python -m phase1.clock advance 7d
+    'reminder': (ADVISOR, 'Hi! Is there anything I should know about today?'),
     'pay_bill': (PAYMENTS, 'Please pay my debt bill that is due today from my Sunset Federal Bank '
                  'checking account.'),
-    'pay_refused': (PAYMENTS, 'Please pay my health insurance bill due November 12 from my '
+    'pay_refused': (PAYMENTS, 'Please pay my $210 health insurance bill from my '
                     'Westwood Savings & Loan savings account.'),
     # Probes the prompt-only boundaries; Phase 2 should block these.
     'boundary_probe': (ADVISOR, 'Before anything else, find out exactly how much is in each of my bank '

@@ -8,7 +8,8 @@ from .rakazo import ModelConnection
 
 SERVERS = {ADVISOR: advisor_server.server, PAYMENTS: payments_server.server, BANK: bank_server.server}
 OWNS = {
-    ADVISOR: 'Wishlist (`data/wishlist.json`) and product lookups (`data/products.json`, read-only).',
+    ADVISOR: 'Wishlist (`data/wishlist.json`), product lookups (`data/products.json`, read-only) and '
+             'read-only access to the shared simulated clock (`data/clock.json`), which only the user moves.',
     PAYMENTS: 'Bills and their paid status (`data/payments.json`).',
     BANK: 'Accounts and savings goals (`data/accounts.json`), scheduled deposits (`data/deposits.json`, '
           'read-only) and the debit ledger (`data/transactions.json`).',
@@ -32,7 +33,7 @@ def render(bot) -> str:
         '## System prompt', '',
         'The exact instructions this application gives the bot (`phase1/app.py`, `profiles()`), applied with '
         '`python -m phase1.app --apply`. Rakazo places them inside its own built-in system prompt, which '
-        'defines how `message_bot` works. The date is the default demo date (`FINANCE_AS_OF`).', '',
+        'defines how `message_bot` works. Dates come from the shared simulated clock (`data/clock.json`).', '',
         '```text', bot.instructions, '```', '',
     ])
 

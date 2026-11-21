@@ -41,7 +41,7 @@ the CS239 tutorial's pattern (`examples/movie_night`): MCP tool servers, Rakazo 
 | | `financial-advisor/policy.md` | [policy.md](policy.md) |
 | | `financial-advisor/tools.md` | [description/tools.md](description/tools.md) |
 | | `financial-advisor/agents/*.md`: each agent's tools and exact system prompt | [description/agents/](description/agents/) (generated from `app.py`) |
-| | `financial-advisor/episodes/*.md`: 9 episodes, 6 real and 3 hypothetical | [description/episodes/](description/episodes/) |
+| | `financial-advisor/episodes/*.md`: 10 episodes, 6 real and 4 hypothetical | [description/episodes/](description/episodes/) |
 | `…-whole.tar.gz` | `src/`: this README, code, data, docs, traces | the repo, with the data reset to its starting state |
 | | `tests/`: test cases | [tests/](tests/) ([tests/README.md](tests/README.md)) |
 
@@ -54,10 +54,13 @@ the CS239 tutorial's pattern (`examples/movie_night`): MCP tool servers, Rakazo 
 | `phase1/run_servers.py` | Starts all three MCP servers |
 | `phase1/export_traces.py` | Saves a scenario's trace (Rakazo conversations and tool-call log) |
 | `phase1/check_tools.py` | Walks the workflows through the MCP servers with no LLM |
+| `phase1/clock.py` | Shows or moves the simulated clock (`python -m phase1.clock advance 7d`) |
+| `phase1/simulator.py` | Time passing (not an agent): on a forward clock move, receives paychecks and autopays the bills due before the new date |
 | `phase1/describe.py` | Regenerates `description/agents/*.md` from `app.py` |
 | `phase1/rakazo.py` | The tutorial's Rakazo API helper, with small additions |
 | `data/` | Fictional data: `wishlist.json` (empty), `payments.json` (20 unpaid bills), `accounts.json` (2 checking, 3 savings), `transactions.json` (empty ledger), `deposits.json`, `products.json` |
-| `data/seed/` | Starting copies of the files agents can change, restored by `run_servers --reset` |
+| `data/clock.json` | The shared simulated clock all tools use as "now" (starts today after `run_servers --reset`) |
+| `data/seed/` | Starting data dated from 2026-10-24 (bills, balances, paychecks, empty wishlist and ledger, clock); `run_servers --reset` copies it back, shifted to start today |
 | `traces/phase1/<scenario>/` | Recorded traces (`run.json`, `trace.json`, `trace.md`), written by `--send` and `export_traces` |
 | `description/` | App, tool and agent descriptions and episodes (the requirements archive) |
 | `requirements.md`, `policy.md` | Requirements and policies |
@@ -84,7 +87,7 @@ app commands from `src/`, and the tests from the archive root.
 | `MCP_HOST` | `--apply` | `host.docker.internal` (how Rakazo's containers reach the MCP servers) |
 | `MODEL_PROVIDER`, `MODEL_ID` | `--apply` with a Claude sign-in | `anthropic`, `claude-opus-5-5` |
 | `MODEL_BASE_URL`, `MODEL_ID`, `MODEL_API_KEY` | `--apply` with an OpenAI-compatible key | `https://api.openai.com/v1`, `gpt-4.1`, your key |
-| `FINANCE_AS_OF` | Optional demo date (default `2026-10-24`); set it in both terminals | `2026-10-24` |
+| `FINANCE_AS_OF` | Optional: pins the date and ignores the clock file (used by tests); normally leave it unset | `2026-10-24` |
 
 ## Setup
 
@@ -93,7 +96,7 @@ python -m venv .venv
 source .venv/bin/activate          # Windows PowerShell: .venv\Scripts\Activate.ps1
                                    # (if blocked: Set-ExecutionPolicy -Scope Process Bypass)
 python -m pip install -r requirements.txt
-python -m unittest discover tests -v    # 30 tests, no LLM needed
+python -m unittest discover tests -v    # 50 tests, no LLM needed
 python -m phase1.check_tools            # walks the workflows through the MCP servers
 ```
 
@@ -143,6 +146,10 @@ After the first install, just start Docker Desktop. The containers restart on th
    ```bash
    python -m phase1.run_servers --reset
    ```
+
+   `--reset` restores the starting data shifted to **today**: the clock starts at 09:00 today, and every
+   bill and paycheck moves by the same number of days, so the agents' dates match the real calendar
+   and every answer stays the same. Add `--start 2026-10-24` to use the seed's own dates instead.
 
 2. In Terminal 2, set the environment variables. For example, with a Claude sign-in in PowerShell:
 
@@ -199,12 +206,21 @@ python -m phase1.app --send pay_bill --fresh     # Payment Manager: "Please pay 
 python -m phase1.app --confirm pay_bill          # sends "Yes, I confirm. Please go ahead with that payment."
 # ...expected answer: "P01 is paid, confirmation TX-0001"
 python -m phase1.export_traces pay_bill
+
+# Time passing: the console was saved with a reminder on 2026-10-31
+python -m phase1.clock advance 7d               # a week passes: paycheck received, past bills autopaid
+python -m phase1.app --send reminder --fresh    # Financial Advisor: "Is there anything I should know about today?"
+# ...expected answer: a reminder about the NovaPlay 5, and an offer to check it again
+python -m phase1.export_traces reminder
 ```
+
+Only this command moves time: no agent can, so no agent can set off autopay. If you ask the Financial Advisor to change the date, it points you to the command.
 
 | Scenario | Sent to | What it shows |
 |---|---|---|
-| `console`, `headphones`, `gaming_pc` | Financial Advisor | The three purchase outcomes (wait a week / buy today / not now and add to wishlist) |
-| `wishlist` | Financial Advisor | Wishlist reminder (run after `gaming_pc`) |
+| `console`, `headphones`, `gaming_pc` | Financial Advisor | The three purchase outcomes: wait a week (saved, reminder in 7 days) / buy today / not now (saved, reminder in 30 days) |
+| `reminder` | Financial Advisor | The wishlist reminder after time passes (run after `console`, then `python -m phase1.clock advance 7d`) |
+| `wishlist` | Financial Advisor | Lists the wishlist and its reminder dates |
 | `pay_bill` | Payment Manager | Confirmed bill payment through the Bank Agent (needs `--confirm`) |
 | `pay_refused` | Payment Manager | Payment refused: it would take savings below the goal (needs `--confirm`) |
 | `boundary_probe`, `pay_probe` | Financial Advisor | Probes of the prompt-only policies (Phase 2 baselines) |
@@ -220,8 +236,11 @@ and `dist/<name>-financial-advisor-<uid>-whole.tar.gz`. The second archive ships
 
 ## Notes
 
-- The data uses a fixed demo date, 2026-10-24, so every run gives the same answers, and each bot is
-  told this is "today". To move the clock, set `FINANCE_AS_OF` in both terminals and re-run `--apply`.
+- Dates come from a shared simulated clock (`data/clock.json`). `run_servers --reset` moves the whole scenario so the clock starts at 09:00 on today's real date: every bill, paycheck and the clock shift by the same number of days, so the answers stay the same. The seed itself starts on 2026-10-24, the date used in the tests and episodes.
+  Only you move it, with `python -m phase1.clock advance|set|reset`; agents can only read it. Moving forward means you lived through those days: paychecks dated up to
+  the new day arrive, and every bill due before it is paid automatically (from the paycheck account when it
+  can, else other checking, else savings), which the command prints. `clock reset` starts the run over. The
+  servers read the data on every call, so no restart or `--apply` is needed.
 - Payments change only the fictional JSON files. `run_servers --reset` restores them from `data/seed/`.
 - The scripts save your Rakazo login session in `~/.cs239-financial-advisor/rakazo-session.json`
   (outside this repo) and ask for the password only when it expires. Rakazo allows just 10 sign-ins

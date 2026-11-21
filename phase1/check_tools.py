@@ -8,6 +8,7 @@ from contextlib import AsyncExitStack
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -55,7 +56,8 @@ async def demo():
         # Start from the seed (unpaid bills, original balances), whatever live runs have changed.
         for seed in (ROOT / 'data' / 'seed').glob('*.json'):
             shutil.copy(seed, Path(folder) / 'data' / seed.name)
-        env = {**os.environ, 'FINANCE_DATA_DIR': str(Path(folder) / 'data'),
+        env = {**{k: v for k, v in os.environ.items() if k != 'FINANCE_AS_OF'},
+               'FINANCE_DATA_DIR': str(Path(folder) / 'data'),
                'FINANCE_TOOL_LOG': str(Path(folder) / 'tool_calls.jsonl')}
         async with AsyncExitStack() as stack:
             advisor = await connect(stack, 'advisor_server', env)
@@ -85,15 +87,17 @@ async def demo():
                 print('  remaining after fees + price:', projected)
                 print('  above threshold:', {s: c['above_threshold'] for s, c in checks.items()})
                 print('  advice:', verdict)
-                if verdict.startswith('do not'):
+                if verdict != 'buy today':
                     saved = unpack(await advisor.call_tool('add_to_wishlist', {
                         'name': product['name'], 'price': product['price'],
-                        'deduction': 'Buying it would push savings below the goal within 30 days.'}))
-                    print('  wishlist entry:', saved['saved'])
+                        'deduction': 'Buying it now would push savings below the goal.',
+                        'reminder': 'week' if verdict == 'wait about a week' else 'month'}))
+                    print('  wishlist entry, reminder:', saved['saved']['reminder'])
 
             missing = unpack(await advisor.call_tool('lookup_product',
                                                      {'url': 'https://www.amazon.com/dp/B0UNKNOWN0'}))
             print('\nUnknown link:', missing['status'])
+
 
             # Paying a bill: Payment Manager records it, but only Bank Agent moves money.
             bills = unpack(await payments.call_tool('list_unpaid_bills', {}))['bills']
@@ -122,6 +126,18 @@ async def demo():
                   await debit('Bruin Credit Union', 'checking', 1850.00, 'P09'))
             print('Pay from an unknown account:', await debit('Fake Bank', 'checking', 10.00, 'P03'))
             print('Debit with no bill id:', await debit('Sunset Federal Bank', 'checking', 10.00, 'gift'))
+
+            # Time passes: paychecks arrive, past bills are paid automatically, reminders come due.
+            print()
+            for when in ('2026-10-30', '2026-10-31', '2026-11-23'):
+                # Only the user moves time: run the same command they would.
+                subprocess.run([sys.executable, '-m', 'phase1.clock', 'set', when], cwd=ROOT, env=env,
+                               check=True, capture_output=True)
+                due = unpack(await advisor.call_tool('list_wishlist', {'due_only': True}))['items']
+                fees = unpack(await payments.call_tool('get_upcoming_fees', {'scope': 'day'}))
+                total = unpack(await bank.call_tool('get_accounts', {}))['current_total']
+                print(f'Clock {when}: reminders due {[i["name"] for i in due]}; overdue bills '
+                      f'{fees["overdue_count"]}; total money {total}')
 
 
 if __name__ == '__main__':

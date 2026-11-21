@@ -36,15 +36,21 @@ wants to buy.
    4. It computes what would be left after the bills and the item.
    5. It asks the Bank Agent whether each amount stays above the savings threshold.
    6. It advises buying today, waiting about a week, waiting about a month, or not buying now.
-2. **Wishlist.** Items the user should not buy now are saved with a general reason and a
-   reminder date. When a reminder date arrives, the Financial Advisor brings the item up again.
-3. **Bill payment.** "Pay my debt bill from my Sunset Federal checking."
+2. **Wishlist and reminders.** Whenever the advice is not "buy today", the item is saved with a general
+   reason and a reminder date that matches the advice: a week out for "wait about a week", and a month out
+   for "wait about a month" or "not now". On the user's first request once that date arrives, the
+   Financial Advisor reminds them of the item and offers to check it again with fresh figures.
+3. **Simulated time.** All agents share a simulated clock. A reset starts it at 09:00 on today's date, shifting every bill and paycheck by the same days. The user moves it
+   forward with `python -m phase1.clock` (no agent can move it) to
+   live through those days: a simulator (not an agent) receives the paychecks and autopays the bills due
+   before the new date, and wishlist reminders come due.
+4. **Bill payment.** "Pay my debt bill from my Sunset Federal checking."
    1. The Payment Manager finds the bill and asks the user to confirm it.
    2. It asks the Bank Agent to debit the account.
    3. The Bank Agent pays or refuses (unknown account, insufficient funds, savings below goal,
       already paid).
    4. The Payment Manager records the bill as paid, using the Bank Agent's confirmation id.
-4. **Spending summary.** The Payment Manager summarizes bills by type and draws a bar chart.
+5. **Spending summary.** The Payment Manager summarizes bills by type and draws a bar chart.
 
-All data is fictional (`data/*.json`). Dates use a fixed demo date (2026-10-24), so runs are
+All data is fictional (`data/*.json`). The seed is dated from 2026-10-24 (the dates in the episodes); because a reset shifts all dates together, runs from a reset are
 reproducible. The requirements and the 16 policies are in `policy.md`.
