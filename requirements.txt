@@ -1,7 +1,2 @@
-# Python 3.13; minimal tested runtime for the prebuilt slides and examples.
-mcp==2.1.1
-a2a-sdk[http-server]==1.2.2
-httpx==0.28.1
-uvicorn==0.54.0
-pydantic==2.14.1
-starlette==1.7.0
+# Python 3.10+. The only dependency; the scripted backend and the tests need none.
+anthropic>=2.12,<3

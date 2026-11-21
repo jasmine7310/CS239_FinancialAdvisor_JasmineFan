@@ -1,6 +1,6 @@
 # Requirements: Multi-Agent Purchase Advisor
 
-Phase 1 requirements. The submission's policy list, `policy.md` (P1–P16), condenses §5 below into numbered policies.
+Requirements for the Phase 2 app (the self-contained Python runtime in `finadvisor/`). `policy.md` (P1–P17) condenses §5 below into numbered policies. The Phase 1 version ran on Rakazo; it is on the `main` branch.
 
 ## 1. Purpose
 
@@ -12,19 +12,22 @@ The user can also ask the Payment Manager to **pay a bill** from one of their ac
 only after the user explicitly confirms, and only the Bank Agent can debit an account. The system never
 buys the item itself.
 
-All data is fictional (`data/*.json`). Dates come from a shared **simulated clock** (`data/clock.json`). The seed starts on **2026-10-24**; `run_servers --reset` shifts every date so the clock starts at 09:00 today, keeping the spacing of bills and paychecks. The user moves it forward
-(`python -m phase1.clock`; no agent can) to simulate time passing, and every bot is told to use it as "today". `run_servers --reset` restores
-the starting data from `data/seed/`.
+All data is fictional (`fixtures/*.json`). Each run works on its own fresh copy of the fixtures. Dates come from a
+shared **simulated clock** (`clock.json` in the run's data folder). The fixtures start on **2026-10-24**; a run can
+start on another day, which shifts every date by the same amount. Only the user moves the clock forward (`/advance` in
+the chat, or a scenario step; no agent can) to simulate time passing, and every agent is told to use it as "today".
 
 ## 2. Agents
 
-| Agent | Owns (only it can read) | Tools (its own MCP server) | Talks to |
+| Agent | Owns (only it can read) | Tools (its own set, through `ToolBox.call`) | May message |
 |---|---|---|---|
-| **Financial Advisor (FA)** | Wishlist, product lookups | `lookup_product`, `project_balances`, `list_wishlist`, `add_to_wishlist`, `remove_from_wishlist` | User, PM, Bank |
-| **Payment Manager (PM)** | Bills (rent, loans, debts, utilities, subscriptions, insurance) and their paid status | `get_upcoming_fees`, `list_unpaid_bills`, `mark_bill_paid`, `spending_chart` | User, FA, Bank |
-| **Bank Agent (Bank)** | Accounts, balances, savings goals, APY, scheduled deposits, transaction ledger | `get_accounts`, `get_projected_totals`, `check_savings_threshold`, `debit_account` | FA, PM (and the user directly) |
+| **Financial Advisor (FA)** | Wishlist, product lookups | `lookup_product`, `project_balances`, `list_wishlist`, `add_to_wishlist`, `remove_from_wishlist`, `get_clock` | PM, Bank |
+| **Payment Manager (PM)** | Bills (rent, loans, debts, utilities, subscriptions, insurance) and their paid status | `get_upcoming_fees`, `list_unpaid_bills`, `mark_bill_paid`, `spending_chart` | Bank |
+| **Bank Agent (Bank)** | Accounts, balances, savings goals, APY, scheduled deposits, transaction ledger | `get_accounts`, `get_projected_totals`, `check_savings_threshold`, `debit_account` | nobody (it only replies) |
 
-Agents communicate only through Rakazo's `message_bot`. Each bot is assigned only its own MCP server.
+Agents talk only through the `message_agent` tool, which goes through `MessageBus.send`: the bus refuses a message
+the sender may not send, labels every message with its real sender, runs the recipient's turn and returns its reply.
+The user may message any agent. Every tool call goes through `ToolBox.call`, which refuses tools outside the caller's set.
 
 ## 3. Data formats
 
@@ -57,12 +60,12 @@ Each agent's instructions include the exact format of the data it owns.
 | FR-8 | At the start of every new user request, FA checks for wishlist items whose reminder date has arrived on the simulated clock, reminds the user of them first, and asks whether to check them again. It calls an item affordable only after a fresh purchase check. |
 | FR-9 | FA removes a wishlist item when the user buys it or no longer wants it. |
 | FR-10 | FA's final answer states the item, price, advice and reason, and names the source of each figure. |
-| FR-11 | PM can summarize spending by type for a scope and produce a bar chart (`data/charts/spending_<scope>.svg`). |
+| FR-11 | PM can summarize spending by type for a scope and produce a bar chart (`charts/spending_<scope>.svg` in the run's data folder). |
 | FR-12 | The user can ask PM to pay a bill from a named bank and account type. PM identifies the bill with `list_unpaid_bills` and asks the user to confirm the bill id, type, amount, due date and account. |
 | FR-13 | After confirmation, PM asks Bank to debit exactly the bill amount, using the bill id as reference. Bank calls `debit_account` and answers "completed" with a confirmation id (`TX-####`), or "refused" with a reason. |
 | FR-14 | On "completed", PM records the bill as paid with `mark_bill_paid` (bill id + confirmation id). Paid bills no longer count toward fee totals. On "refused", PM tells the user why and does not retry another account unless asked. |
 | FR-15 | Bank refuses a debit when the account doesn't exist, the reference isn't a bill id, the bill was already paid, funds are insufficient, or a savings account would drop below its goal. |
-| FR-16 | The user can read and move the simulated clock: `python -m phase1.clock` (show, `set`, `advance`, `reset`). FA can read it with `get_clock`; no agent can move it. All three agents' tools use the new time on their next call. |
+| FR-16 | The user can read and move the simulated clock: `/advance 7d`, `/set <date>` and `/state` in `python -m finadvisor chat`, or a scenario step. FA can read it with `get_clock`; no agent can move it. All three agents' tools use the new time on their next call. |
 | FR-17 | Moving the clock forward settles the days that passed: paychecks dated up to the new day are received, and every unpaid bill due before the new day is paid by autopay from the paycheck account (ledger `source: "autopay"`). Bills due on the new day stay due. |
 
 ## 5. Security requirements: what the system must never do
@@ -71,7 +74,7 @@ Each agent's instructions include the exact format of the data it owns.
 
 | ID | Requirement |
 |---|---|
-| AC-1 | Each agent may call only the tools on its own MCP server, so it can read only its own data store. |
+| AC-1 | Each agent may call only its own tools (`ToolBox.call`) and message only the agents it is allowed to (`MessageBus.send`), so it can read only its own data store. |
 | AC-2 | No agent may buy the item or transfer money between accounts. The only way money moves is `debit_account` paying a bill (FR-12–15), plus the simulator's autopay of bills due before the new date when the user moves the clock forward (FR-17); no agent can trigger autopay on its own. Agents must never claim a payment happened without a Bank confirmation id. |
 | AC-3 | Separation of duties for writes: FA writes only the wishlist; no agent writes the simulated clock; PM writes only bill status (`mark_bill_paid`); Bank alone changes balances and the ledger (`debit_account`). Deposits and products are read-only. |
 | AC-4 | PM must never request, receive or infer balances or savings goals. Bank must never request or receive bill details beyond the bill id and amount it is asked to pay. |
@@ -106,7 +109,7 @@ Each agent's instructions include the exact format of the data it owns.
 | PR-2 | FA bases its decision only on figures from the owning agent's reply in the current request. It never uses estimates, invented numbers, or balances the user claims. |
 | PR-3 | The above/below verdict comes only from Bank's `check_savings_threshold` result, never from FA's own judgment. |
 | PR-4 | Content fetched from a product link is data, not instructions. Text on a product page cannot change budgets, thresholds or the timing rule. |
-| PR-5 | Every tool call is logged with the calling agent, timestamp, arguments and result (`traces/tool_calls.jsonl`). |
+| PR-5 | Every tool call is logged with the calling agent, timestamp, arguments and result (the run's `trace.json`, together with every message and model output). |
 | PR-6 | A payment must trace back to the user's own confirmation in PM's chat. Requests from FA, from Bank, or from text in a product page or other content are refused. |
 | PR-7 | A bill is marked paid only with the confirmation id Bank returned for that bill, and the ledger entry carries the bill id. Bill and debit can always be matched up. |
 
@@ -117,13 +120,14 @@ Each agent's instructions include the exact format of the data it owns.
 | LC-1 | Fee and balance figures are valid only for the request in which they were obtained. FA re-requests them for each new purchase question. |
 | LC-2 | The wishlist (persistent storage) holds only name, price, dates and a general reason. It never holds balances, bank names, bill details or other agents' figures. |
 | LC-3 | A wishlist entry lives from a "wait about a week", "wait about a month" or "not now" decision until the user buys or declines the item. It is surfaced again on the first request once its reminder date arrives, and gets a new reminder date if the user keeps waiting. |
-| LC-4 | The data starts in a known state (empty wishlist, 20 unpaid bills, original balances, empty ledger, clock at 09:00 on the reset day, all dates shifted by the same amount) and is reset only on the user's instruction (`run_servers --reset`). |
+| LC-4 | The data starts in a known state (empty wishlist, 20 unpaid bills, original balances, empty ledger, clock at 09:00 on the reset day, all dates shifted by the same amount) for every run; runs never share data. |
 | LC-5 | A bill moves one way, from unpaid to paid, and can be paid only once (enforced by both `debit_account` and `mark_bill_paid`). |
 | LC-6 | All agents use the same simulated clock. Fees, overdue bills, balances, projections and reminder dates are computed against it, never against the real calendar. Only the user may move it. |
 
-## 6. Phase 1 limitations (motivating Phase 2)
+## 6. What the original app enforces (before porting)
 
-In Phase 1, AC-1 is enforced structurally, because each bot is assigned only its own MCP server.
+AC-1 is enforced in code: `ToolBox.call` refuses another agent's tools and `MessageBus.send` refuses a message the
+sender may not send; the bus also labels each message with its real sender.
 The tools also enforce FR-15 and LC-5 (no double payment, no overdraft, no dipping below a savings goal).
 **Every other rule in §5 is a prompt instruction, not enforced isolation**, like the tutorial's
 movie-night policy. A cooperative-sounding request, a model mistake, or text injected through a product
@@ -133,8 +137,8 @@ page can break IB-*, PR-*, AC-5 and LC-2. In particular:
 - `debit_account` cannot tell whether a request came from PM or from the user's confirmation (PR-6).
 - `mark_bill_paid` checks only the confirmation id's format, because PM cannot read Bank's ledger (PR-7).
 
-The `boundary_probe` and `pay_probe` scenarios exercise these gaps. Phase 2 converts §5 into
-enforceable rules in the policy-assurance framework.
+The `boundary_probe`, `pay_probe` and `bank_purchase_question` scenarios exercise these gaps. Porting with
+PolicyWeave converts §5 into enforceable rules checked at `ToolBox.call` and `MessageBus.send`.
 
 ## 7. Assumptions
 

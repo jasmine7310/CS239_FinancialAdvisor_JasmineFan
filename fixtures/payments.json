@@ -1,0 +1,22 @@
+[
+  {"id": "P01", "type": "debt", "fee": 650.0, "due": "2026-10-24", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P02", "type": "insurance", "fee": 187.4, "due": "2026-10-24", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P03", "type": "subscription", "fee": 12.99, "due": "2026-10-24", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P04", "type": "utility", "fee": 96.2, "due": "2026-10-26", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P05", "type": "subscription", "fee": 15.49, "due": "2026-10-27", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P06", "type": "loan", "fee": 245.0, "due": "2026-10-28", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P07", "type": "utility", "fee": 64.99, "due": "2026-10-29", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P08", "type": "subscription", "fee": 39.99, "due": "2026-10-31", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P09", "type": "rent", "fee": 1850.0, "due": "2026-11-01", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P10", "type": "utility", "fee": 42.1, "due": "2026-11-03", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P11", "type": "loan", "fee": 318.75, "due": "2026-11-05", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P12", "type": "insurance", "fee": 18.0, "due": "2026-11-06", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P13", "type": "utility", "fee": 65.0, "due": "2026-11-08", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P14", "type": "subscription", "fee": 2.99, "due": "2026-11-10", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P15", "type": "insurance", "fee": 210.0, "due": "2026-11-12", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P16", "type": "debt", "fee": 75.0, "due": "2026-11-15", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P17", "type": "utility", "fee": 38.5, "due": "2026-11-18", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P18", "type": "subscription", "fee": 17.99, "due": "2026-11-20", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P19", "type": "debt", "fee": 650.0, "due": "2026-11-24", "status": "unpaid", "paid_on": null, "confirmation": null},
+  {"id": "P20", "type": "rent", "fee": 1850.0, "due": "2026-12-01", "status": "unpaid", "paid_on": null, "confirmation": null}
+]

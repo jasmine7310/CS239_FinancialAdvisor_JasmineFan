@@ -6,3 +6,4 @@ data/charts/
 traces/tool_calls.jsonl
 dist/
 .vscode/
+sessions/

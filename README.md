@@ -1,251 +1,100 @@
-# CS239 Project: Financial Advisor (multi-agent purchase advisor)
+# CS239 Phase 2: Financial Advisor (multi-agent purchase advisor)
 
-Three Rakazo bots decide whether, and when, the user can afford an item, and pay bills on the
-user's confirmed request:
+Three agents decide whether, and when, the user can afford an item, and pay bills on the user's
+confirmed request. This `phase2` branch holds the app ported to PolicyWeave. Phase 1 (the same app
+running on Rakazo) is on the `main` branch.
 
 - **Financial Advisor** talks to the user, looks up the item price, does the math, and keeps the wishlist.
-- **Payment Manager** knows the user's bills (rent, loans, debts, utilities, subscriptions, insurance)
-  and pays one when the user confirms, by asking the Bank Agent to debit an account.
-- **Bank Agent** knows the accounts, savings goals, interest and scheduled paychecks, and is the only
-  agent that can take money out of an account.
+- **Payment Manager** knows the user's bills and pays one when the user confirms, by asking the Bank Agent.
+- **Bank Agent** knows the accounts, savings goals, interest and paychecks, and is the only agent that can
+  take money out of an account.
 
 ```
- User ──► Financial Advisor ──message_bot──► Payment Manager   (fee totals per scope)
-              │   ▲          ──message_bot──► Bank Agent        (projected totals, threshold check)
- User ──► Payment Manager ───message_bot──► Bank Agent          (debit to pay a confirmed bill)
-
-   MCP :8771 wishlist/products   MCP :8772 bills        MCP :8773 accounts/deposits/ledger
+ user ──► Financial Advisor ──message_agent──► Payment Manager    (fee totals per scope)
+               │              ──message_agent──► Bank Agent         (projected totals, threshold check)
+ user ──► Payment Manager ────message_agent──► Bank Agent           (debit to pay a confirmed bill)
+ user ──► Bank Agent                                                 (their own accounts)
 ```
 
-Each bot is assigned **only its own MCP server**, so it can read only its own data. The app follows
-the CS239 tutorial's pattern (`examples/movie_night`): MCP tool servers, Rakazo bot profiles and `message_bot`.
+The whole app runs in one Python process. Two functions are its action boundaries, where PolicyWeave
+adds its checks:
 
-## Where each deliverable is
-
-**Course project deliverables** (public repo):
-
-| Deliverable | Location |
-|---|---|
-| `requirements.md`: what the app does and must never do | [requirements.md](requirements.md) |
-| `policies.md`: the policies as rules | [policy.md](policy.md): 16 policies, P1–P16, each marked as enforced in code or prompt-only |
-| Phase 1 source | [phase1/](phase1/) (tools, bot profiles, scripts) and [data/](data/) |
-| Phase 1 traces (at least 3) | [traces/phase1/](traces/phase1/): 4 complete scenario runs, 1 whole live session, 2 earlier runs showing real issues |
-| `traces/README.md`: each scenario and which policy was triggered | [traces/README.md](traces/README.md) |
-| Phase 2 source and traces | Added in Phase 2 (`phase2/`, `traces/phase2/`) |
-
-**Submission archives** (built by `python make_submission.py`, see below):
-
-| Archive | Contents | Source in this repo |
+| Boundary | What goes through it | Checks in the original app |
 |---|---|---|
-| `…-requirements.tar.gz` | `financial-advisor/app.md` | [description/app.md](description/app.md) |
-| | `financial-advisor/policy.md` | [policy.md](policy.md) |
-| | `financial-advisor/tools.md` | [description/tools.md](description/tools.md) |
-| | `financial-advisor/agents/*.md`: each agent's tools and exact system prompt | [description/agents/](description/agents/) (generated from `app.py`) |
-| | `financial-advisor/episodes/*.md`: 10 episodes, 6 real and 4 hypothetical | [description/episodes/](description/episodes/) |
-| `…-whole.tar.gz` | `src/`: this README, code, data, docs, traces | the repo, with the data reset to its starting state |
-| | `tests/`: test cases | [tests/](tests/) ([tests/README.md](tests/README.md)) |
+| `ToolBox.call(agent, tool, arguments)` in `finadvisor/tools.py` | every tool call | the tool must be in the caller's own set |
+| `MessageBus.send(sender, recipient, text)` in `finadvisor/bus.py` | every message, between agents and from the user | the sender may message that recipient; the bus labels the real sender |
+
+[policy.md](policy.md) lists the 17 policies (P1–P17) and which are enforced in code. [requirements.md](requirements.md)
+has the detailed requirements.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `phase1/advisor_server.py`, `payments_server.py`, `bank_server.py` | One MCP server per agent (the tools) |
-| `phase1/app.py` | Bot profiles (system prompts and policies), scenarios, `--apply` / `--send` / `--confirm` |
-| `phase1/run_servers.py` | Starts all three MCP servers |
-| `phase1/export_traces.py` | Saves a scenario's trace (Rakazo conversations and tool-call log) |
-| `phase1/check_tools.py` | Walks the workflows through the MCP servers with no LLM |
-| `phase1/clock.py` | Shows or moves the simulated clock (`python -m phase1.clock advance 7d`) |
-| `phase1/simulator.py` | Time passing (not an agent): on a forward clock move, receives paychecks and autopays the bills due before the new date |
-| `phase1/describe.py` | Regenerates `description/agents/*.md` from `app.py` |
-| `phase1/rakazo.py` | The tutorial's Rakazo API helper, with small additions |
-| `data/` | Fictional data: `wishlist.json` (empty), `payments.json` (20 unpaid bills), `accounts.json` (2 checking, 3 savings), `transactions.json` (empty ledger), `deposits.json`, `products.json` |
-| `data/clock.json` | The shared simulated clock all tools use as "now" (starts today after `run_servers --reset`) |
-| `data/seed/` | Starting data dated from 2026-10-24 (bills, balances, paychecks, empty wishlist and ledger, clock); `run_servers --reset` copies it back, shifted to start today |
-| `traces/phase1/<scenario>/` | Recorded traces (`run.json`, `trace.json`, `trace.md`), written by `--send` and `export_traces` |
-| `description/` | App, tool and agent descriptions and episodes (the requirements archive) |
-| `requirements.md`, `policy.md` | Requirements and policies |
-| `tests/` | Unit tests (no LLM needed) |
-| `make_submission.py` | Builds the two submission archives |
-
-In the submission archive, the code is in `src/` and the tests are in `tests/` next to it. Run the
-app commands from `src/`, and the tests from the archive root.
-
-## External requirements
-
-| Requirement | Why |
-|---|---|
-| Python 3.13+ | Runs the MCP servers and scripts (`requirements.txt`: mcp, a2a-sdk, httpx, uvicorn, pydantic, starlette) |
-| Docker Desktop (or Docker Engine + Compose) | Runs Rakazo/grokbot locally |
-| Rakazo/grokbot, installed with the CS239 tutorial's `setup-rakazo.sh` | Hosts the three bots and `message_bot` (see the setup notes below) |
-| A tool-capable LLM | We used **Claude Opus 5.5** through a Claude Pro/Max sign-in in Rakazo. An OpenAI-compatible API key also works |
-
-| Environment variable | Needed for | Example |
-|---|---|---|
-| `RAKAZO_URL` | All Rakazo commands | `http://127.0.0.1:5173` |
-| `RAKAZO_EMAIL` | All Rakazo commands | your Rakazo account email |
-| `RAKAZO_PASSWORD` | Optional; otherwise you're prompted, and only when the saved session expired | — |
-| `MCP_HOST` | `--apply` | `host.docker.internal` (how Rakazo's containers reach the MCP servers) |
-| `MODEL_PROVIDER`, `MODEL_ID` | `--apply` with a Claude sign-in | `anthropic`, `claude-opus-5-5` |
-| `MODEL_BASE_URL`, `MODEL_ID`, `MODEL_API_KEY` | `--apply` with an OpenAI-compatible key | `https://api.openai.com/v1`, `gpt-4.1`, your key |
-| `FINANCE_AS_OF` | Optional: pins the date and ignores the clock file (used by tests); normally leave it unset | `2026-10-24` |
+| `finadvisor/tools.py` | Each agent's tools, their definitions for the model, and `ToolBox` |
+| `finadvisor/bus.py` | `MessageBus`: messages between agents and from the user |
+| `finadvisor/agents.py` | `Agent`: the model ↔ tool loop for one agent |
+| `finadvisor/prompts.py` | Each agent's system prompt, and who may message whom |
+| `finadvisor/backends.py` | `AnthropicBackend` (Claude) and `ScriptedBackend` (free, offline, deterministic) |
+| `finadvisor/simulator.py` | Time passing: paychecks arrive and past bills are autopaid. Only the user moves time |
+| `finadvisor/store.py` | A run's private copy of the fixtures, and the simulated clock |
+| `finadvisor/app.py` | `App`: one run (data, trace, tools, bus, three agents) |
+| `finadvisor/scenarios.py` | Scripted scenarios and `run_scenario` |
+| `finadvisor/__main__.py` | Command line: `chat`, `scenario`, `list` |
+| `fixtures/` | Fictional starting data, dated from 2026-10-24 |
+| `tests/` | Unit and end-to-end tests ([tests/README.md](tests/README.md)) |
 
 ## Setup
+
+Python 3.10+.
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate          # Windows PowerShell: .venv\Scripts\Activate.ps1
-                                   # (if blocked: Set-ExecutionPolicy -Scope Process Bypass)
 python -m pip install -r requirements.txt
-python -m unittest discover tests -v    # 50 tests, no LLM needed
-python -m phase1.check_tools            # walks the workflows through the MCP servers
+python -m unittest discover tests -v      # no model or key needed
 ```
 
-### Rakazo setup notes (one time)
+Live runs use Claude through the Messages API and need an API key in your environment
+(`ANTHROPIC_API_KEY`). Never put the key in a file in this repository.
 
-Install Rakazo from the **tutorial** folder with `bash setup-rakazo.sh` (in WSL on Windows). Then open
-http://localhost:5173, create an account, connect a model, and set English in the language settings. Two
-problems with the current upstream `edge` images need fixing:
-
-1. **`setup-rakazo.sh` stops with "Unexpected upstream Compose layout; startup refused."** Its patch
-   looks for `"  api:\n"`, which also matches the more deeply indented `api:` lines under `depends_on`.
-   Add the same `extra_hosts` entry by hand, under the top-level `api:` and `worker:` services in
-   `.rakazo-runtime/docker-compose.images.yml`:
-
-   ```yaml
-       extra_hosts:
-         - "host.docker.internal:host-gateway"
-   ```
-
-   Then finish the install from `.rakazo-runtime/`:
-
-   ```bash
-   COMPOSE_PROJECT_NAME=cs239-tutorial-rakazo RAKAZO_API_PORT=23100 bash install-images.sh --local
-   ```
-
-2. **`--apply` fails at `mcp/servers/create` (HTTP 400)** because Rakazo refuses `http://` and private
-   MCP endpoints such as `host.docker.internal`. In `.rakazo-runtime/.env`, uncomment
-   `MCP_ALLOW_PRIVATE_ENDPOINT=true`, then recreate the two containers:
-
-   ```bash
-   COMPOSE_PROJECT_NAME=cs239-tutorial-rakazo RAKAZO_API_PORT=23100 \
-     docker compose --env-file .env -f docker-compose.images.yml up -d --no-deps --force-recreate api worker
-   ```
-
-   This is safe here because Rakazo listens only on `127.0.0.1` and the data is fictional. Leave it unset on public installs.
-
-To connect Claude with a Pro/Max subscription: in Rakazo's model settings, choose "Sign in with
-Claude Pro/Max". After signing in, the browser shows a "can't connect" page at `localhost:53692/callback?...`.
-That's expected: paste that whole URL into Rakazo's "Authorization code or callback URL" box.
-
-After the first install, just start Docker Desktop. The containers restart on their own.
+| Variable | Default | What |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | none | Required for live runs |
+| `APP_MODEL` | `claude-opus-5-5` | The agents' model, e.g. `claude-haiku-5-5` for low-cost runs |
+| `APP_EFFORT` | the model's default | `low`, `medium`, `high`, `xhigh` or `max` |
 
 ## Run
 
-1. Start the three MCP servers and leave them running (Terminal 1):
-
-   ```bash
-   python -m phase1.run_servers --reset
-   ```
-
-   `--reset` restores the starting data shifted to **today**: the clock starts at 09:00 today, and every
-   bill and paycheck moves by the same number of days, so the agents' dates match the real calendar
-   and every answer stays the same. Add `--start 2026-10-24` to use the seed's own dates instead.
-
-2. In Terminal 2, set the environment variables. For example, with a Claude sign-in in PowerShell:
-
-   ```powershell
-   $env:RAKAZO_URL = "http://127.0.0.1:5173"
-   $env:RAKAZO_EMAIL = "YOUR_ACCOUNT_EMAIL"
-   $env:MODEL_PROVIDER = "anthropic"
-   $env:MODEL_ID = "claude-opus-5-5"
-   $env:MCP_HOST = "host.docker.internal"
-   ```
-
-   With bash and an OpenAI-compatible key, use `export RAKAZO_URL=...` and so on, with
-   `MODEL_BASE_URL`, `MODEL_ID` and `MODEL_API_KEY` instead of `MODEL_PROVIDER`.
-
-3. Preview the bots' prompts, then create the bots, or update them after a prompt change. Re-running is safe:
-
-   ```bash
-   python -m phase1.app
-   python -m phase1.app --apply
-   ```
-
-4. Run a scenario, wait for the final answer in the receiving bot's chat in Rakazo, then export its trace:
-
-   ```bash
-   python -m phase1.app --send console --fresh
-   python -m phase1.export_traces console
-   ```
-
-   `--fresh` first deletes the three bots' chat history, so a run can't reuse an earlier one's answers.
-   It lists runs you haven't exported and asks you to type `yes`. Export each trace before the next
-   send, and don't type in the bots' chats during a run. To only clear the chats without sending
-   anything (for example before recording a demo), run `python -m phase1.app --fresh` on its own.
-
-5. To save **everything** currently in the three chats, including messages you typed in Rakazo's UI
-   (for example during a live demo), export the whole session:
-
-   ```bash
-   python -m phase1.export_traces --session            # traces/phase1/session_<date>-<time>/
-   python -m phase1.export_traces --session demo_dec3  # or pick the folder name
-   ```
-
-   It covers every message since the chats were last cleared with `--fresh`, plus the tool calls from
-   that time on. Export before the next `--fresh`, because clearing deletes the chats in Rakazo.
-
-### Example usage
-
 ```bash
-python -m phase1.app --send console --fresh      # Financial Advisor: "Can I buy this gaming console? <link>"
-# ...expected answer: "wait about a week" (traces/phase1/console/trace.md)
-python -m phase1.export_traces console
-
-python -m phase1.app --send pay_bill --fresh     # Payment Manager: "Please pay my debt bill that is due today..."
-# ...Payment Manager asks you to confirm P01, $650.00, Sunset Federal Bank checking
-python -m phase1.app --confirm pay_bill          # sends "Yes, I confirm. Please go ahead with that payment."
-# ...expected answer: "P01 is paid, confirmation TX-0001"
-python -m phase1.export_traces pay_bill
-
-# Time passing: the console was saved with a reminder on 2026-10-31
-python -m phase1.clock advance 7d               # a week passes: paycheck received, past bills autopaid
-python -m phase1.app --send reminder --fresh    # Financial Advisor: "Is there anything I should know about today?"
-# ...expected answer: a reminder about the NovaPlay 5, and an offer to check it again
-python -m phase1.export_traces reminder
+python -m finadvisor list                          # the scenarios
+python -m finadvisor scenario console --scripted   # offline, free
+python -m finadvisor scenario console              # live, with Claude
+python -m finadvisor chat                          # talk to the agents (add --scripted for offline)
 ```
 
-Only this command moves time: no agent can, so no agent can set off autopay. If you ask the Financial Advisor to change the date, it points you to the command.
+In the chat, start a line with `fa:`, `pm:` or `bank:` to choose who you talk to. Use `/advance 7d` or
+`/set 2026-10-31` to move time, `/state` to see the data, `/usage` for tokens used, and `/quit` to stop.
+A chat starts on today's date (`--start YYYY-MM-DD` to choose another day); scenarios start on 2026-10-24.
+Each chat or scenario saves its `trace.json` and final `state.json` under `sessions/` (ignored by git;
+`runs/` is kept for the graded test-harness results).
+
+Moving time forward means the user lived through those days: paychecks dated up to the new day arrive,
+and every bill due before it is paid automatically (from the paycheck account when it can, else other
+checking, else savings). No agent can move time.
 
 | Scenario | Sent to | What it shows |
 |---|---|---|
-| `console`, `headphones`, `gaming_pc` | Financial Advisor | The three purchase outcomes: wait a week (saved, reminder in 7 days) / buy today / not now (saved, reminder in 30 days) |
-| `reminder` | Financial Advisor | The wishlist reminder after time passes (run after `console`, then `python -m phase1.clock advance 7d`) |
-| `wishlist` | Financial Advisor | Lists the wishlist and its reminder dates |
-| `pay_bill` | Payment Manager | Confirmed bill payment through the Bank Agent (needs `--confirm`) |
-| `pay_refused` | Payment Manager | Payment refused: it would take savings below the goal (needs `--confirm`) |
-| `boundary_probe`, `pay_probe` | Financial Advisor | Probes of the prompt-only policies (Phase 2 baselines) |
-
-## Submission archives
-
-```bash
-python make_submission.py --name <name> --uid <uid>
-```
-
-This regenerates the agent files, runs the tests, and writes `dist/<name>-financial-advisor-<uid>-requirements.tar.gz`
-and `dist/<name>-financial-advisor-<uid>-whole.tar.gz`. The second archive ships the starting data.
+| `console`, `headphones`, `gaming_pc` | Financial Advisor | Wait about a week (saved, reminder in 7 days) / buy today / not now (saved, reminder in 30 days) |
+| `wishlist` | Financial Advisor | The gaming PC is saved, then listed |
+| `reminder` | Financial Advisor | Console, then a week passes; the Financial Advisor reminds the user first |
+| `pay_bill` | Payment Manager | Confirmation, then payment through the Bank Agent |
+| `pay_refused` | Payment Manager | Confirmed, but the Bank Agent refuses (savings goal) |
+| `boundary_probe`, `pay_probe`, `bank_purchase_question` | various | Requests the policies say must be refused or redirected |
 
 ## Notes
 
-- Dates come from a shared simulated clock (`data/clock.json`). `run_servers --reset` moves the whole scenario so the clock starts at 09:00 on today's real date: every bill, paycheck and the clock shift by the same number of days, so the answers stay the same. The seed itself starts on 2026-10-24, the date used in the tests and episodes.
-  Only you move it, with `python -m phase1.clock advance|set|reset`; agents can only read it. Moving forward means you lived through those days: paychecks dated up to
-  the new day arrive, and every bill due before it is paid automatically (from the paycheck account when it
-  can, else other checking, else savings), which the command prints. `clock reset` starts the run over. The
-  servers read the data on every call, so no restart or `--apply` is needed.
-- Payments change only the fictional JSON files. `run_servers --reset` restores them from `data/seed/`.
-- The scripts save your Rakazo login session in `~/.cs239-financial-advisor/rakazo-session.json`
-  (outside this repo) and ask for the password only when it expires. Rakazo allows just 10 sign-ins
-  per 15 minutes. Delete that file to log out.
-- Product links resolve against a fictional catalog (`data/products.json`). Unknown links make the advisor ask for the price.
-- The MCP servers bind to `0.0.0.0` (as in the tutorial) so the Docker containers can reach them.
-- Phase 1 enforces tool access (P1), debit refusals (P12), single payment (P13) and logging (P16) in
-  code. The other policies are prompt instructions only (see `policy.md`). Phase 2 enforces them.
+- All data is fictional. Product links resolve against `fixtures/products.json`.
+- `ScriptedBackend` follows the policies with fixed rules. It is for development and tests, not a model.
+- With `claude-opus-5-5` (and other models that support it), requests use the API's server-side refusal
+  fallback. Remove `FALLBACK_MODELS` in `finadvisor/backends.py` to turn it off.
